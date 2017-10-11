@@ -1,0 +1,25 @@
+#STATS from the exceRpt smallRNA-seq pipeline v.4.6.2 for sample sample_NEB_7_CAGATCAGTTCAGA_L078_R1_001_fastq. Run started at 2017-07-26--01:49:56
+Stage	ReadCount
+input	11141867
+successfully_clipped	10834890
+failed_quality_filter	312070
+failed_homopolymer_filter	50530
+calibrator	10168893
+UniVec_contaminants	1553
+rRNA	2427
+reads_used_for_alignment	299417
+genome	187729
+miRNA_sense	33458
+miRNA_antisense	41
+miRNAprecursor_sense	1862
+miRNAprecursor_antisense	24
+tRNA_sense	30
+tRNA_antisense	0
+piRNA_sense	46
+piRNA_antisense	3
+gencode_sense	113934
+gencode_antisense	5643
+circularRNA_sense	0
+circularRNA_antisense	0
+not_mapped_to_genome_or_libs	111688
+#END OF STATS from the exceRpt smallRNA-seq pipeline. Run completed at 2017-07-26--02:08:08

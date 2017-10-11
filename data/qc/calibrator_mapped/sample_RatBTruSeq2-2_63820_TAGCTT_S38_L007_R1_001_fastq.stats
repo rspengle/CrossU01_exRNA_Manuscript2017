@@ -1,0 +1,25 @@
+#STATS from the exceRpt smallRNA-seq pipeline v.4.6.2 for sample sample_RatBTruSeq2-2_63820_TAGCTT_S38_L007_R1_001_fastq. Run started at 2017-07-25--01:34:26
+Stage	ReadCount
+input	11322992
+successfully_clipped	11238460
+failed_quality_filter	221249
+failed_homopolymer_filter	1395
+calibrator	10874371
+UniVec_contaminants	33881
+rRNA	307
+reads_used_for_alignment	107257
+genome	65798
+miRNA_sense	35027
+miRNA_antisense	14
+miRNAprecursor_sense	1248
+miRNAprecursor_antisense	16
+tRNA_sense	6
+tRNA_antisense	1
+piRNA_sense	6
+piRNA_antisense	1
+gencode_sense	7881
+gencode_antisense	2498
+circularRNA_sense	0
+circularRNA_antisense	1
+not_mapped_to_genome_or_libs	41459
+#END OF STATS from the exceRpt smallRNA-seq pipeline. Run completed at 2017-07-25--01:55:13

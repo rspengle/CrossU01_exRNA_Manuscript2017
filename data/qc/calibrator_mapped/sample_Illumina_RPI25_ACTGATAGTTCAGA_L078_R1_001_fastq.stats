@@ -1,0 +1,25 @@
+#STATS from the exceRpt smallRNA-seq pipeline v.4.6.2 for sample sample_Illumina_RPI25_ACTGATAGTTCAGA_L078_R1_001_fastq. Run started at 2017-07-25--01:20:23
+Stage	ReadCount
+input	30006478
+successfully_clipped	29466155
+failed_quality_filter	825732
+failed_homopolymer_filter	2532
+calibrator	27414860
+UniVec_contaminants	122386
+rRNA	2219
+reads_used_for_alignment	1098426
+genome	591238
+miRNA_sense	71761
+miRNA_antisense	0
+miRNAprecursor_sense	6980
+miRNAprecursor_antisense	61
+tRNA_sense	112
+tRNA_antisense	0
+piRNA_sense	185
+piRNA_antisense	31
+gencode_sense	317572
+gencode_antisense	18680
+circularRNA_sense	19
+circularRNA_antisense	9
+not_mapped_to_genome_or_libs	507188
+#END OF STATS from the exceRpt smallRNA-seq pipeline. Run completed at 2017-07-25--01:58:05

@@ -1,0 +1,25 @@
+#STATS from the exceRpt smallRNA-seq pipeline v.4.6.2 for sample sample_IG7_RatiometricSythA_NEB_3_R1__final_fastq. Run started at 2017-07-26--00:51:09
+Stage	ReadCount
+input	20449129
+successfully_clipped	20239124
+failed_quality_filter	890125
+failed_homopolymer_filter	119377
+calibrator	18932653
+UniVec_contaminants	5325
+rRNA	6527
+reads_used_for_alignment	285117
+genome	181793
+miRNA_sense	70404
+miRNA_antisense	36
+miRNAprecursor_sense	4146
+miRNAprecursor_antisense	56
+tRNA_sense	6
+tRNA_antisense	0
+piRNA_sense	75
+piRNA_antisense	8
+gencode_sense	26334
+gencode_antisense	11136
+circularRNA_sense	2
+circularRNA_antisense	3
+not_mapped_to_genome_or_libs	103324
+#END OF STATS from the exceRpt smallRNA-seq pipeline. Run completed at 2017-07-26--01:24:10

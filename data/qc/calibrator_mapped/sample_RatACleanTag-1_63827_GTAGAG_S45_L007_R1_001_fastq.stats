@@ -1,0 +1,25 @@
+#STATS from the exceRpt smallRNA-seq pipeline v.4.6.2 for sample sample_RatACleanTag-1_63827_GTAGAG_S45_L007_R1_001_fastq. Run started at 2017-07-26--16:39:47
+Stage	ReadCount
+input	9885460
+successfully_clipped	9803987
+failed_quality_filter	233433
+failed_homopolymer_filter	67101
+calibrator	9376143
+UniVec_contaminants	3267
+rRNA	4196
+reads_used_for_alignment	119847
+genome	85625
+miRNA_sense	56409
+miRNA_antisense	10
+miRNAprecursor_sense	3057
+miRNAprecursor_antisense	4
+tRNA_sense	5
+tRNA_antisense	0
+piRNA_sense	13
+piRNA_antisense	1
+gencode_sense	7682
+gencode_antisense	2904
+circularRNA_sense	0
+circularRNA_antisense	0
+not_mapped_to_genome_or_libs	34222
+#END OF STATS from the exceRpt smallRNA-seq pipeline. Run completed at 2017-07-26--16:51:50
