@@ -1,0 +1,25 @@
+#STATS from the exceRpt smallRNA-seq pipeline v.4.6.2 for sample sample_4N-Plasma-3_S85400_ACTGAT_fastq. Run started at 2017-07-26--13:53:50
+Stage	ReadCount
+input	15158059
+successfully_clipped	8403831
+failed_quality_filter	152712
+failed_homopolymer_filter	16631
+calibrator	NA
+UniVec_contaminants	1148093
+rRNA	87073
+reads_used_for_alignment	2626599
+genome	1704170
+miRNA_sense	840570
+miRNA_antisense	0
+miRNAprecursor_sense	4858
+miRNAprecursor_antisense	71
+tRNA_sense	49853
+tRNA_antisense	5
+piRNA_sense	55994
+piRNA_antisense	5
+gencode_sense	670444
+gencode_antisense	10241
+circularRNA_sense	0
+circularRNA_antisense	2
+not_mapped_to_genome_or_libs	922429
+#END OF STATS from the exceRpt smallRNA-seq pipeline. Run completed at 2017-07-26--14:12:34

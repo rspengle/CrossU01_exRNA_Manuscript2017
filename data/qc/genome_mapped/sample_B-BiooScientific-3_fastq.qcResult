@@ -1,0 +1,7 @@
+Adapter_confidence: HIGH
+QC_result: PASS
+InputReads: 26014166
+GenomeReads: 6097982
+TranscriptomeReads: 5978425
+TranscriptomeGenomeRatio: 0.980394
+TranscriptomeComplexity: 0.00376119

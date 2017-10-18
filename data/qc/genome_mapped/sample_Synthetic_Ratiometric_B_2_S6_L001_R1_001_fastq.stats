@@ -1,0 +1,25 @@
+#STATS from the exceRpt smallRNA-seq pipeline v.4.6.2 for sample sample_Synthetic_Ratiometric_B_2_S6_L001_R1_001_fastq. Run started at 2017-07-26--03:27:37
+Stage	ReadCount
+input	34634707
+successfully_clipped	32346909
+failed_quality_filter	32421
+failed_homopolymer_filter	330052
+calibrator	NA
+UniVec_contaminants	85449
+rRNA	395254
+reads_used_for_alignment	31503733
+genome	30645357
+miRNA_sense	30203938
+miRNA_antisense	16
+miRNAprecursor_sense	25915
+miRNAprecursor_antisense	674
+tRNA_sense	3
+tRNA_antisense	0
+piRNA_sense	7
+piRNA_antisense	2
+gencode_sense	58755
+gencode_antisense	20066
+circularRNA_sense	12
+circularRNA_antisense	7
+not_mapped_to_genome_or_libs	858376
+#END OF STATS from the exceRpt smallRNA-seq pipeline. Run completed at 2017-07-26--05:06:46

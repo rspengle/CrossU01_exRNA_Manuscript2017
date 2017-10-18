@@ -1,0 +1,25 @@
+#STATS from the exceRpt smallRNA-seq pipeline v.4.6.2 for sample sample_NEB-EQ-3_S85535_TTAGGC_fastq. Run started at 2017-07-14--14:21:29
+Stage	ReadCount
+input	8675231
+successfully_clipped	8512541
+failed_quality_filter	291406
+failed_homopolymer_filter	2600
+calibrator	NA
+UniVec_contaminants	121321
+rRNA	1792
+reads_used_for_alignment	8095422
+genome	5033770
+miRNA_sense	3803797
+miRNA_antisense	0
+miRNAprecursor_sense	31957
+miRNAprecursor_antisense	689
+tRNA_sense	9
+tRNA_antisense	0
+piRNA_sense	2067
+piRNA_antisense	1
+gencode_sense	103359
+gencode_antisense	67577
+circularRNA_sense	0
+circularRNA_antisense	31
+not_mapped_to_genome_or_libs	3061652
+#END OF STATS from the exceRpt smallRNA-seq pipeline. Run completed at 2017-07-14--14:53:17

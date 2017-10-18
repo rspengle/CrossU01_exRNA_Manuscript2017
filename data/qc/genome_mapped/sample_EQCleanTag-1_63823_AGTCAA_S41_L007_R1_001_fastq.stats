@@ -1,0 +1,25 @@
+#STATS from the exceRpt smallRNA-seq pipeline v.4.6.2 for sample sample_EQCleanTag-1_63823_AGTCAA_S41_L007_R1_001_fastq. Run started at 2017-07-26--04:11:57
+Stage	ReadCount
+input	9779332
+successfully_clipped	9671526
+failed_quality_filter	227241
+failed_homopolymer_filter	1462
+calibrator	NA
+UniVec_contaminants	10024
+rRNA	58341
+reads_used_for_alignment	9374458
+genome	6537097
+miRNA_sense	4928406
+miRNA_antisense	0
+miRNAprecursor_sense	31556
+miRNAprecursor_antisense	992
+tRNA_sense	0
+tRNA_antisense	0
+piRNA_sense	842
+piRNA_antisense	0
+gencode_sense	592593
+gencode_antisense	294222
+circularRNA_sense	2
+circularRNA_antisense	3
+not_mapped_to_genome_or_libs	2837361
+#END OF STATS from the exceRpt smallRNA-seq pipeline. Run completed at 2017-07-26--04:39:59

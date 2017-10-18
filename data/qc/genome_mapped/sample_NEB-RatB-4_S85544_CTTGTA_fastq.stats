@@ -1,0 +1,25 @@
+#STATS from the exceRpt smallRNA-seq pipeline v.4.6.2 for sample sample_NEB-RatB-4_S85544_CTTGTA_fastq. Run started at 2017-07-14--14:52:54
+Stage	ReadCount
+input	11294175
+successfully_clipped	10752425
+failed_quality_filter	303048
+failed_homopolymer_filter	13564
+calibrator	NA
+UniVec_contaminants	1236
+rRNA	16899
+reads_used_for_alignment	10417678
+genome	10140260
+miRNA_sense	9935734
+miRNA_antisense	6
+miRNAprecursor_sense	6283
+miRNAprecursor_antisense	661
+tRNA_sense	3
+tRNA_antisense	0
+piRNA_sense	6
+piRNA_antisense	2
+gencode_sense	27758
+gencode_antisense	10797
+circularRNA_sense	3
+circularRNA_antisense	35
+not_mapped_to_genome_or_libs	277418
+#END OF STATS from the exceRpt smallRNA-seq pipeline. Run completed at 2017-07-14--15:25:31

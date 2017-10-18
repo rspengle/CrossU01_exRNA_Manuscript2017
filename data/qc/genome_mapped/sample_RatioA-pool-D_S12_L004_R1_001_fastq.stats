@@ -1,0 +1,25 @@
+#STATS from the exceRpt smallRNA-seq pipeline v.4.6.2 for sample sample_RatioA-pool-D_S12_L004_R1_001_fastq. Run started at 2017-06-08--12:00:31
+Stage	ReadCount
+input	1813098
+successfully_clipped	1797902
+failed_quality_filter	28879
+failed_homopolymer_filter	5804
+calibrator	NA
+UniVec_contaminants	8932
+rRNA	25160
+reads_used_for_alignment	1504639
+genome	1449622
+miRNA_sense	1339495
+miRNA_antisense	7
+miRNAprecursor_sense	36087
+miRNAprecursor_antisense	85
+tRNA_sense	66
+tRNA_antisense	0
+piRNA_sense	73
+piRNA_antisense	0
+gencode_sense	33661
+gencode_antisense	1170
+circularRNA_sense	2
+circularRNA_antisense	1
+not_mapped_to_genome_or_libs	55017
+#END OF STATS from the exceRpt smallRNA-seq pipeline. Run completed at 2017-06-08--12:08:06

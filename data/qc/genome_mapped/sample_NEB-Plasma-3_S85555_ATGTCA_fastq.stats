@@ -1,0 +1,25 @@
+#STATS from the exceRpt smallRNA-seq pipeline v.4.6.2 for sample sample_NEB-Plasma-3_S85555_ATGTCA_fastq. Run started at 2017-07-14--14:20:38
+Stage	ReadCount
+input	8088382
+successfully_clipped	7284856
+failed_quality_filter	219023
+failed_homopolymer_filter	2593
+calibrator	NA
+UniVec_contaminants	1940
+rRNA	121876
+reads_used_for_alignment	6939424
+genome	6395321
+miRNA_sense	1175997
+miRNA_antisense	0
+miRNAprecursor_sense	2901
+miRNAprecursor_antisense	95
+tRNA_sense	66858
+tRNA_antisense	1
+piRNA_sense	4746
+piRNA_antisense	2
+gencode_sense	5069557
+gencode_antisense	6080
+circularRNA_sense	5
+circularRNA_antisense	22
+not_mapped_to_genome_or_libs	544103
+#END OF STATS from the exceRpt smallRNA-seq pipeline. Run completed at 2017-07-14--14:48:55

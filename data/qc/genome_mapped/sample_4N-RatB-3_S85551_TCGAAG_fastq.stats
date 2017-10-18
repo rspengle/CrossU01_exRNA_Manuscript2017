@@ -1,0 +1,25 @@
+#STATS from the exceRpt smallRNA-seq pipeline v.4.6.2 for sample sample_4N-RatB-3_S85551_TCGAAG_fastq. Run started at 2017-07-26--10:19:15
+Stage	ReadCount
+input	9183656
+successfully_clipped	9105238
+failed_quality_filter	255680
+failed_homopolymer_filter	3816
+calibrator	NA
+UniVec_contaminants	121376
+rRNA	28547
+reads_used_for_alignment	7993057
+genome	7320055
+miRNA_sense	7153830
+miRNA_antisense	13
+miRNAprecursor_sense	15577
+miRNAprecursor_antisense	309
+tRNA_sense	17
+tRNA_antisense	0
+piRNA_sense	23
+piRNA_antisense	0
+gencode_sense	29834
+gencode_antisense	6424
+circularRNA_sense	6
+circularRNA_antisense	2
+not_mapped_to_genome_or_libs	673002
+#END OF STATS from the exceRpt smallRNA-seq pipeline. Run completed at 2017-07-26--10:53:50

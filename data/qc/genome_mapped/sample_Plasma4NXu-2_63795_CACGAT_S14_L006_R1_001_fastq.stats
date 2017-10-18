@@ -1,0 +1,25 @@
+#STATS from the exceRpt smallRNA-seq pipeline v.4.6.2 for sample sample_Plasma4NXu-2_63795_CACGAT_S14_L006_R1_001_fastq. Run started at 2017-08-01--16:22:37
+Stage	ReadCount
+input	15757079
+successfully_clipped	313794
+failed_quality_filter	5497
+failed_homopolymer_filter	126
+calibrator	NA
+UniVec_contaminants	26272
+rRNA	1592
+reads_used_for_alignment	123694
+genome	60938
+miRNA_sense	30668
+miRNA_antisense	0
+miRNAprecursor_sense	115
+miRNAprecursor_antisense	1
+tRNA_sense	611
+tRNA_antisense	0
+piRNA_sense	3013
+piRNA_antisense	0
+gencode_sense	24863
+gencode_antisense	202
+circularRNA_sense	0
+circularRNA_antisense	0
+not_mapped_to_genome_or_libs	62756
+#END OF STATS from the exceRpt smallRNA-seq pipeline. Run completed at 2017-08-01--16:31:44

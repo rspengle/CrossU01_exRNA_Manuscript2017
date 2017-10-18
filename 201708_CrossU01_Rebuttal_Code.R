@@ -19,6 +19,7 @@ library(KernSmooth)
 library(dendsort)
 library(vegan)
 library(ggbeeswarm)
+library(xlsx)
 
 # Load previously saved data -------------------------------------------------------------------
 rdata.file="./data/20170901_EQ_Ratio_Plasma_MANUSCRIPT_DATA.RData"
@@ -265,6 +266,8 @@ counts.dt.collapse <- FUNCTION.collapse.lanes(counts.dt, char.override="lane", g
 counts.dt.uncollapsed <- counts.dt
 counts.dt <- counts.dt.collapse # this is the one to move forward with
 
+
+
 ## Wrangle Equimolar counts
 # ADD ZERO-COUNTS BACK IN
 # Cast to wide matrix, and fill missing with zeros
@@ -285,6 +288,49 @@ counts.all.dt[, seq.len:=nchar(sequence)]
 counts.all.dt[, gc.perc:=nchar(str_replace_all(sequence, pattern="[ATU]", replacement=""))/seq.len]
 counts.all.dt.sizeFilt <- subset(counts.all.dt, seq.len>=min.seqLen & seq.len<=max.seqLen) # Filter for size
 counts.all.dt.add.zerocount <- merge(CROSS.U01.SYNTH.METADATA, counts.all.dt.sizeFilt)
+
+
+# Supplemental Table S3a: Synthetic Pool QC Metrics ----
+EXCERPT.STATS.PLASMA.AND.SYNTHETIC.collapse <- FUNCTION.collapse.lanes(EXCERPT.STATS.PLASMA.AND.SYNTHETIC, char.override = c("lane"), group.by.var = c("lab.libMethod.pool.replicate", "Stage") , paste.collapse.character = TRUE)
+setnames(EXCERPT.STATS.PLASMA.AND.SYNTHETIC.collapse, c("Calibrator", "NoCalibrator"), c("Calibrator.run", "noCalibrator.run"))
+EXCERPT.STATS.SYNTHETIC.collapse <- dcast.data.table(subset(EXCERPT.STATS.PLASMA.AND.SYNTHETIC.collapse, pool!="PlasmaPool", select=-noCalibrator.run), ...~Stage, value.var = "Calibrator.run")
+EXCERPT.STATS.SYNTHETIC.collapse[, `:=`(tot.failing.qc=InputReads-reads_used_for_alignment-calibrator)]
+EXCERPT.STATS.SYNTHETIC.collapse[, `:=`(percent.input.failing.qc=tot.failing.qc/InputReads)]
+EXCERPT.STATS.SYNTHETIC.collapse[, `:=`(reads.failing.adapter.trimming=tot.failing.qc-(failed_quality_filter + failed_homopolymer_filter + UniVec_contaminants + rRNA))]
+qc.fail.cols <- c("reads.failing.adapter.trimming", "failed_quality_filter", "failed_homopolymer_filter", "UniVec_contaminants", "rRNA")
+perc.qc.fail.ids <- paste0("percent.fail.", qc.fail.cols)
+EXCERPT.STATS.SYNTHETIC.collapse[, (perc.qc.fail.ids):=lapply(.SD, FUN=function(x){ x/tot.failing.qc }), by=1:nrow(EXCERPT.STATS.SYNTHETIC.collapse), .SDcols=qc.fail.cols]
+EXCERPT.STATS.SYNTHETIC.collapse[, `:=`(percent.tot.input.aligned.calib=calibrator/input, 
+                                        percent.prefilt.input.aligned=calibrator/(input-(reads.failing.adapter.trimming + failed_quality_filter + failed_homopolymer_filter)),
+                                        percent.synth.unmapped.mapping.genome=genome/reads_used_for_alignment)]
+# Add in library size after filtering short miRs, since this is what is used for filtering
+counts.all.dt.filt.libSize <- counts.all.dt.sizeFilt[, sum(count), by=lab.libMethod.pool.replicate]
+setkey(counts.all.dt.filt.libSize, lab.libMethod.pool.replicate)
+setkey(EXCERPT.STATS.SYNTHETIC.collapse, lab.libMethod.pool.replicate)
+EXCERPT.STATS.SYNTHETIC.collapse[counts.all.dt.filt.libSize, calibrator.sizefilt.tot:=V1]
+EXCERPT.STATS.SYNTHETIC.collapse[, `:=`(percent.tot.input.aligned.calib.sizeFilt=calibrator.sizefilt.tot/input, 
+                                        percent.prefilt.input.aligned.sizeFilt=calibrator.sizefilt.tot/(input-(reads.failing.adapter.trimming + failed_quality_filter + failed_homopolymer_filter)))]
+synth.stats.select.outcols <- c("lab.libMethod.pool.replicate", "Lab", "lib.method.detail", "lib.method.simple", "pool", "replicate", "FileBaseName", "adapter.confidence", "lane", "Notes", "InputReads", "tot.failing.qc", "percent.input.failing.qc", perc.qc.fail.ids, "calibrator", "percent.tot.input.aligned.calib", "percent.prefilt.input.aligned", "calibrator.sizefilt.tot", "percent.tot.input.aligned.calib.sizeFilt", "percent.prefilt.input.aligned.sizeFilt", "reads_used_for_alignment", "percent.synth.unmapped.mapping.genome")
+EXCERPT.STATS.SYNTHETIC.OUTPUT <- subset(EXCERPT.STATS.SYNTHETIC.collapse, select=synth.stats.select.outcols)
+
+
+# Supplemental Table S3b: Plasma Pool QC Metrics ----
+EXCERPT.STATS.PLASMA.collapse <- dcast.data.table(subset(EXCERPT.STATS.PLASMA.AND.SYNTHETIC.collapse, pool=="PlasmaPool", select=-Calibrator.run), ...~Stage, value.var = "noCalibrator.run")
+EXCERPT.STATS.PLASMA.collapse[, `:=`(tot.failing.qc=InputReads-reads_used_for_alignment)]
+EXCERPT.STATS.PLASMA.collapse[, `:=`(percent.input.failing.qc=tot.failing.qc/InputReads)]
+EXCERPT.STATS.PLASMA.collapse[, `:=`(reads.failing.adapter.trimming=tot.failing.qc-(failed_quality_filter + failed_homopolymer_filter + UniVec_contaminants + rRNA))]
+EXCERPT.STATS.PLASMA.collapse[, (perc.qc.fail.ids):=lapply(.SD, FUN=function(x){ x/tot.failing.qc }), by=1:nrow(EXCERPT.STATS.PLASMA.collapse), .SDcols=qc.fail.cols]
+EXCERPT.STATS.PLASMA.collapse[, `:=`(percent.input.used.for.mapping=reads_used_for_alignment/input, 
+                                     genome.mapped.percent.alignment.input=genome/reads_used_for_alignment,
+                                     miRNA.mapped.percent.alignment.input=miRNA_sense/reads_used_for_alignment,
+                                     unmapped.percent.alignment.input=not_mapped_to_genome_or_libs/reads_used_for_alignment)]
+plasma.stats.select.outcols <- c("lab.libMethod.pool.replicate", "Lab", "lib.method.detail", "lib.method.simple", "pool", "replicate", "FileBaseName", "adapter.confidence", "excerpt.qc.call.genomeMapped", "lane", "Notes", "InputReads", "tot.failing.qc", "percent.input.failing.qc", perc.qc.fail.ids, "reads_used_for_alignment", "percent.input.used.for.mapping", "genome", "genome.mapped.percent.alignment.input", "miRNA_sense", "miRNA.mapped.percent.alignment.input", "not_mapped_to_genome_or_libs", "unmapped.percent.alignment.input")
+EXCERPT.STATS.PLASMA.OUTPUT <- subset(EXCERPT.STATS.PLASMA.collapse, select=plasma.stats.select.outcols)
+this.outfile <- paste0(outdirs["tables"], "/Table_S3_PlasmaQC_Metrics_Synth_and_Plasma.xlsx")
+write.xlsx(EXCERPT.STATS.SYNTHETIC.OUTPUT, file = this.outfile, sheetName = "SYNTH_POOLS_QC_METRICS", row.names = FALSE)
+write.xlsx(EXCERPT.STATS.PLASMA.OUTPUT, file = this.outfile, sheetName = "PLASMA_POOLS_QC_METRICS", row.names = FALSE, append = TRUE)
+
+
 
 # EQUIMOLAR WRANGLING ------------------------
 equimolar.counts <- subset(counts.all.dt.add.zerocount, pool=="SynthEQ" & !is.na(equimolar.seqID))
@@ -652,6 +698,7 @@ FUNCTION.meanRhoFromCoefs <- function(r, ns, nr){
   p.value <- 2 * (1 - pnorm(abs(u)))
   rval <- list(irr.name = "Rho", nlibs= nr, value = coeff, stat.name = "z", statistic = u, p.value = p.value, simple.mean.r=mean.r, r02=r02, r98=r98)
 }
+n.miRs <- dim(cpm.rle)[1]
 cor.matrix.all.eq.sample.info.cor.summary.details <- cor.matrix.all.eq.sample.info.unique[, { nr=length(unique(c(lab.libMethod.replicate.A, lab.libMethod.replicate.B))); FUNCTION.meanRhoFromCoefs(rho, ns=n.miRs, nr=nr) }, by=comparison.detail]
 cor.matrix.all.eq.sample.info.cor.summary.simple <- cor.matrix.all.eq.sample.info.unique[, { nr=length(unique(c(lab.libMethod.replicate.A, lab.libMethod.replicate.B))); FUNCTION.meanRhoFromCoefs(rho, ns=n.miRs, nr=nr) }, by=comparison.simple]
 setnames(cor.matrix.all.eq.sample.info.cor.summary.details, "comparison.detail", "comparison")
@@ -663,7 +710,6 @@ write.table(cor.matrix.all.eq.sample.info.cor.summary.all, this.outfile, sep="\t
 
 
 # meanRho Summary Equimolar: All replicates, but no comparison across technical replicates----
-n.miRs <- dim(cpm.rle)[1]
 cor.matrix.all.eq.sample.info.unique[, `:=`(lab.libMethod.A=sub(".[0-9]$", "", lab.libMethod.replicate.A), lab.libMethod.B=sub(".[0-9]$", "", lab.libMethod.replicate.B)) ]
 cor.matrix.all.eq.sample.info.unique.no.tech.rep.comparison <- cor.matrix.all.eq.sample.info.unique[lab.libMethod.A!=lab.libMethod.B]
 
@@ -674,7 +720,7 @@ setnames(cor.matrix.all.eq.sample.info.unique.no.tech.rep.comparison.cor.summary
 cor.matrix.all.eq.sample.info.unique.no.tech.rep.comparison.cor.summary.all <- unique(rbind(cor.matrix.all.eq.sample.info.unique.no.tech.rep.comparison.cor.summary.details, cor.matrix.all.eq.sample.info.unique.no.tech.rep.comparison.cor.summary.simple), by="comparison")
 
 this.outfile <- paste0(outdirs["tables"], "/Spearman_correlation_equimolar_Pool_summaries_noTechRep_comparison.txt")
-write.table(ccor.matrix.all.eq.sample.info.unique.no.tech.rep.comparison.cor.summary.all, this.outfile, sep="\t", quote=FALSE, row.names=FALSE, col.names=TRUE)
+write.table(cor.matrix.all.eq.sample.info.unique.no.tech.rep.comparison.cor.summary.all, this.outfile, sep="\t", quote=FALSE, row.names=FALSE, col.names=TRUE)
 
 comparison.levels.order <- unique(as.character(melt(outer(lib.detail.levels, lib.detail.levels, FUN = paste, sep=".VS."))$value))
 comparison.levels.order <- comparison.levels.order[comparison.levels.order%in%cor.matrix.all.eq.sample.info.unique.no.tech.rep.comparison.cor.summary.simple$comparison]
@@ -726,8 +772,6 @@ gsub(".VS.", " vs ", paste(cor.matrix.all.eq.sample.info.unique.no.tech.rep.comp
 
 
 
-
-n.miRs <- dim(cpm.rle)[1]
 cor.matrix.all.eq.sample.info.cor.summary.details <- cor.matrix.all.eq.sample.info.unique[, { nr=length(unique(c(lab.libMethod.replicate.A, lab.libMethod.replicate.B))); FUNCTION.meanRhoFromCoefs(rho, ns=n.miRs, nr=nr) }, by=comparison.detail]
 cor.matrix.all.eq.sample.info.cor.summary.simple <- cor.matrix.all.eq.sample.info.unique[, { nr=length(unique(c(lab.libMethod.replicate.A, lab.libMethod.replicate.B))); FUNCTION.meanRhoFromCoefs(rho, ns=n.miRs, nr=nr) }, by=comparison.simple]
 setnames(cor.matrix.all.eq.sample.info.cor.summary.details, "comparison.detail", "comparison")
@@ -736,8 +780,6 @@ cor.matrix.all.eq.sample.info.cor.summary.all <- rbind(cor.matrix.all.eq.sample.
 
 this.outfile <- paste0(outdirs["tables"], "/Spearman_correlation_equimolar_Pool_summaries.txt")
 write.table(cor.matrix.all.eq.sample.info.cor.summary.all, this.outfile, sep="\t", quote=FALSE, row.names=FALSE, col.names=TRUE)
-
-
 
 
 # FIG4A--%CV -------------------------------------------------------------------
@@ -1059,9 +1101,9 @@ ggsave(this.outfile, width = 2.0, height=2.25, units = "in")
 
 
 # INTERLAB CV/QCD Equimolar Summary Table -------------------------------
-MEAN.CV.WI.LABS.subgroups.interlab[, n:=.N, by=.(lib.method.group, equimolar.seqID)]
+MEAN.CV.WI.LABS.subgroups[, n:=.N, by=.(lib.method.group, equimolar.seqID)]
 
-MEAN.CV.ACROSS.LABS.subgroups <- MEAN.CV.WI.LABS.subgroups.interlab[n>2, .(mean.cpm=mean(mean.cpm), sd.cpm=sd(mean.cpm), q1.cpm=quantile(mean.cpm, 0.25), q3.cpm=quantile(mean.cpm, 0.75), n=.N), by=.(lib.method.group, equimolar.seqID)]
+MEAN.CV.ACROSS.LABS.subgroups <- MEAN.CV.WI.LABS.subgroups[n>2, .(mean.cpm=mean(mean.cpm), sd.cpm=sd(mean.cpm), q1.cpm=quantile(mean.cpm, 0.25), q3.cpm=quantile(mean.cpm, 0.75), n=.N), by=.(lib.method.group, equimolar.seqID)]
 MEAN.CV.ACROSS.LABS.subgroups[, `:=`(interlab.cv=100*sd.cpm/mean.cpm, interlab.qcd=((q3.cpm-q1.cpm)/2)/((q3.cpm+q1.cpm)/2))]
 MEAN.CV.ACROSS.LABS.subgroups[, (sub("^0.", "interlab.cv", summary.quantiles)):=lapply(summary.quantiles, USE.NAMES=FALSE, SIMPLIFY=FALSE, quantile, x=interlab.cv), by=.(lib.method.group)]
 MEAN.CV.ACROSS.LABS.subgroups[, (sub("^0.", "interlab.qcd", summary.quantiles)):=lapply(summary.quantiles, USE.NAMES=FALSE, SIMPLIFY=FALSE, quantile, x=interlab.qcd), by=.(lib.method.group)]
@@ -1111,7 +1153,11 @@ FINAL.EQUIMOLAR.LONG[, mean.lib.size:=max(mean.lib.size), by=.(lab.libMethod)]
 EQUIMOLAR.MISSING.MIR.SUMMARY.BY.MIR <- FINAL.EQUIMOLAR.LONG[, .(mean.lib.size=max(mean.lib.size)), by=.(lab.libMethod, Lab, lib.method.detail, lib.method.simple, equimolar.seqID, sequence, seq.len, gc.perc, n.replicates.detected, total.replicates)]
 EQUIMOLAR.MISSING.MIR.SUMMARY <- EQUIMOLAR.MISSING.MIR.SUMMARY.BY.MIR[, .(n.miRs=.N), by=.(lab.libMethod, Lab, lib.method.detail, lib.method.simple, mean.lib.size, n.replicates.detected, total.replicates)]
 EQUIMOLAR.MISSING.MIR.SUMMARY.drop.nonMissing <- EQUIMOLAR.MISSING.MIR.SUMMARY[n.miRs==total.eq.seqs | n.replicates.detected<total.replicates]
-EQUIMOLAR.MISSING.MIR.SUMMARY.total.missing.in.any <- EQUIMOLAR.MISSING.MIR.SUMMARY[, .(n.miRs=sum(ifelse(n.replicates.detected<total.replicates, n.miRs, 0))), by=.(lab.libMethod, Lab, lib.method.detail, lib.method.simple, mean.lib.size, total.replicates)]
+EQUIMOLAR.MISSING.MIR.SUMMARY.total.missing.in.any <- EQUIMOLAR.MISSING.MIR.SUMMARY[, .(n.miRs.missing=sum(ifelse(n.replicates.detected<total.replicates, n.miRs, 0))), by=.(lab.libMethod, Lab, lib.method.detail, lib.method.simple, mean.lib.size, total.replicates)]
+
+# SUP Table 4: Number of undetected sequences in the equimolar pool -----
+this.outfile <- paste0(outdirs["tables"], "/TABLES4_EQUIMOLAR_POOL_MISSING_MIR_COUNTS.xlsx")
+write.xlsx(EQUIMOLAR.MISSING.MIR.SUMMARY.total.missing.in.any, this.outfile, row.names=FALSE, col.names=TRUE)
 
 
 # Top and bottom miRs by protocol
@@ -1483,6 +1529,16 @@ all.ratio.topTables.limma[, ratio.subpool:=factor(paste(ratio.A, ratio.B, sep=":
 all.ratio.topTables.limma[, `:=`(expected.within.95.CI=ifelse(logratio.expected>=CI.L & logratio.expected<=CI.R, 1, 0), span.95.CI=CI.R-CI.L)]
 this.outfile <- paste0(outdirs["tables"], "/RatioPool_limma_voom_calls_for_sup_table.txt")
 write.table(all.ratio.topTables.limma, this.outfile, row.names=FALSE, col.names=TRUE, quote=FALSE, sep="\t")
+
+# Table S5 Ratiometric Pool Observed VS expected ratios
+all.ratio.topTables.limma[, abs.logFC.vs.exp:=abs(logFC.vs.exp)]
+all.ratio.topTables.limma.summary <- all.ratio.topTables.limma[, .(n.WI.1.5x=sum(ifelse(abs.logFC.vs.exp<=log2(1.5), 1, 0)),
+                                                                   n.WI.2.0x=sum(ifelse(abs.logFC.vs.exp<=log2(2.0), 1, 0)),
+                                                                   n.WI.2.5x=sum(ifelse(abs.logFC.vs.exp<=log2(2.5), 1, 0)),
+                                                                   n.tot=.N), by=.(lab.libMethod, ratio.A, ratio.B)]
+all.ratio.topTables.limma.summary[, c("Protocol", "Lab"):=tstrsplit(lab.libMethod, split=".", fixed=TRUE)]
+this.outfile <- paste0(outdirs["tables"], "/TABLE_S5_RatioPool_limma_voom_calls_obs_vs_exp.xlsx")
+write.xlsx(all.ratio.topTables.limma.summary, this.outfile, row.names=FALSE, col.names=TRUE)
 
 # COR HEATMAPS FOR MAN
 #dge.ratio.filt <- dge.ratio[rowSums(dge.ratio$counts>0)>0,]
@@ -2532,7 +2588,7 @@ setnames(ALL.COMPARISON.SCALING.FACTOR.DT.4N.SUBS.AND.ORIG.subset, c("CI.L", "CI
 ALL.COMPARISON.SCALING.FACTOR.DT.4N.SUBS.AND.ORIG.subset[, from.method:=sub("^X4N", "4N", from.method)]
 ALL.COMPARISON.SCALING.FACTOR.DT.4N.SUBS.AND.ORIG.subset[, to.method:=sub("^X4N", "4N", to.method)]
 ALL.COMPARISON.SCALING.FACTOR.DT.4N.SUBS.AND.ORIG.subset[, correction:=sub("^X4N", "4N", correction)]
-this.outfile <- paste0(outdirs["tables"],"20170914_INTER-METHOD_Correction_Factors_equimolar_pool_voom_limma.txt")
+this.outfile <- paste0(outdirs["tables"],"/20170914_INTER-METHOD_Correction_Factors_equimolar_pool_voom_limma.txt")
 write.table(ALL.COMPARISON.SCALING.FACTOR.DT.4N.SUBS.AND.ORIG.subset, this.outfile, sep="\t", quote=FALSE, row.names=FALSE, col.names=TRUE)
 
 # Now remove clean tag & 4N sub-methods from plots to show

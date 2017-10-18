@@ -1,0 +1,25 @@
+#STATS from the exceRpt smallRNA-seq pipeline v.4.6.2 for sample sample_IG19_A_Truseq_3_R1__final_fastq. Run started at 2017-07-25--02:33:00
+Stage	ReadCount
+input	16790335
+successfully_clipped	16678649
+failed_quality_filter	824042
+failed_homopolymer_filter	10024
+calibrator	NA
+UniVec_contaminants	2790
+rRNA	156160
+reads_used_for_alignment	15685633
+genome	15064557
+miRNA_sense	14045676
+miRNA_antisense	73
+miRNAprecursor_sense	9700
+miRNAprecursor_antisense	122
+tRNA_sense	8
+tRNA_antisense	0
+piRNA_sense	2
+piRNA_antisense	0
+gencode_sense	793154
+gencode_antisense	4702
+circularRNA_sense	5
+circularRNA_antisense	4
+not_mapped_to_genome_or_libs	621076
+#END OF STATS from the exceRpt smallRNA-seq pipeline. Run completed at 2017-07-25--03:34:16

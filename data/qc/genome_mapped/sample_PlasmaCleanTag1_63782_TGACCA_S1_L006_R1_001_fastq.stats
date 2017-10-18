@@ -1,0 +1,25 @@
+#STATS from the exceRpt smallRNA-seq pipeline v.4.6.2 for sample sample_PlasmaCleanTag1_63782_TGACCA_S1_L006_R1_001_fastq. Run started at 2017-07-26--04:35:39
+Stage	ReadCount
+input	1265876
+successfully_clipped	1048457
+failed_quality_filter	21600
+failed_homopolymer_filter	904
+calibrator	NA
+UniVec_contaminants	4855
+rRNA	27918
+reads_used_for_alignment	993180
+genome	906966
+miRNA_sense	432206
+miRNA_antisense	0
+miRNAprecursor_sense	784
+miRNAprecursor_antisense	17
+tRNA_sense	3266
+tRNA_antisense	0
+piRNA_sense	138243
+piRNA_antisense	0
+gencode_sense	320789
+gencode_antisense	1332
+circularRNA_sense	2
+circularRNA_antisense	0
+not_mapped_to_genome_or_libs	86214
+#END OF STATS from the exceRpt smallRNA-seq pipeline. Run completed at 2017-07-26--04:41:57

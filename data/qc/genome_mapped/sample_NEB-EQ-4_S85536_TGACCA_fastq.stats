@@ -1,0 +1,25 @@
+#STATS from the exceRpt smallRNA-seq pipeline v.4.6.2 for sample sample_NEB-EQ-4_S85536_TGACCA_fastq. Run started at 2017-07-14--14:22:23
+Stage	ReadCount
+input	14093661
+successfully_clipped	13769509
+failed_quality_filter	446756
+failed_homopolymer_filter	4737
+calibrator	NA
+UniVec_contaminants	224538
+rRNA	2410
+reads_used_for_alignment	13091068
+genome	8106100
+miRNA_sense	5980028
+miRNA_antisense	0
+miRNAprecursor_sense	42967
+miRNAprecursor_antisense	1227
+tRNA_sense	8
+tRNA_antisense	1
+piRNA_sense	3752
+piRNA_antisense	3
+gencode_sense	168442
+gencode_antisense	110821
+circularRNA_sense	3
+circularRNA_antisense	44
+not_mapped_to_genome_or_libs	4984968
+#END OF STATS from the exceRpt smallRNA-seq pipeline. Run completed at 2017-07-14--15:08:41

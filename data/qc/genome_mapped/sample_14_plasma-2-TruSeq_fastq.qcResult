@@ -1,0 +1,7 @@
+Adapter_confidence: WARN_providedAdapter(TGGAATTCTCGGGTGCCAAGG)DisagreesWithGuessed(ATCTCGTATGCCGTCTTCTGCTTGC)
+QC_result: PASS
+InputReads: 12615541
+GenomeReads: 256153
+TranscriptomeReads: 237664
+TranscriptomeGenomeRatio: 0.92782
+TranscriptomeComplexity: 0.0333496

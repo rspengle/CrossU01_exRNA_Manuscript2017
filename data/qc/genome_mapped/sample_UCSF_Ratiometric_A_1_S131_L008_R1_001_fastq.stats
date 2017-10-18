@@ -1,0 +1,25 @@
+#STATS from the exceRpt smallRNA-seq pipeline v.4.6.2 for sample sample_UCSF_Ratiometric_A_1_S131_L008_R1_001_fastq. Run started at 2017-07-26--10:50:59
+Stage	ReadCount
+input	11901696
+successfully_clipped	11431666
+failed_quality_filter	9554
+failed_homopolymer_filter	33306
+calibrator	NA
+UniVec_contaminants	1219
+rRNA	282160
+reads_used_for_alignment	10655760
+genome	10293137
+miRNA_sense	9862043
+miRNA_antisense	22
+miRNAprecursor_sense	16376
+miRNAprecursor_antisense	80
+tRNA_sense	166
+tRNA_antisense	0
+piRNA_sense	1473
+piRNA_antisense	0
+gencode_sense	282162
+gencode_antisense	5338
+circularRNA_sense	2
+circularRNA_antisense	2
+not_mapped_to_genome_or_libs	362623
+#END OF STATS from the exceRpt smallRNA-seq pipeline. Run completed at 2017-07-26--11:40:00

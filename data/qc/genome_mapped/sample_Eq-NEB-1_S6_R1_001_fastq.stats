@@ -1,0 +1,25 @@
+#STATS from the exceRpt smallRNA-seq pipeline v.4.6.2 for sample sample_Eq-NEB-1_S6_R1_001_fastq. Run started at 2017-07-13--19:42:06
+Stage	ReadCount
+input	13258341
+successfully_clipped	13067539
+failed_quality_filter	459156
+failed_homopolymer_filter	5914
+calibrator	NA
+UniVec_contaminants	267444
+rRNA	14394
+reads_used_for_alignment	12320631
+genome	8071313
+miRNA_sense	5790889
+miRNA_antisense	0
+miRNAprecursor_sense	29829
+miRNAprecursor_antisense	2712
+tRNA_sense	5
+tRNA_antisense	0
+piRNA_sense	967
+piRNA_antisense	2
+gencode_sense	247218
+gencode_antisense	100841
+circularRNA_sense	0
+circularRNA_antisense	25
+not_mapped_to_genome_or_libs	4249318
+#END OF STATS from the exceRpt smallRNA-seq pipeline. Run completed at 2017-07-13--20:13:41

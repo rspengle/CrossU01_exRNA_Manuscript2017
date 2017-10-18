@@ -1,0 +1,25 @@
+#STATS from the exceRpt smallRNA-seq pipeline v.4.6.2 for sample sample_U01-plasma-D_S4_L001_R1_001_fastq. Run started at 2017-06-08--12:00:56
+Stage	ReadCount
+input	1984540
+successfully_clipped	1757834
+failed_quality_filter	23008
+failed_homopolymer_filter	6216
+calibrator	NA
+UniVec_contaminants	54591
+rRNA	43146
+reads_used_for_alignment	1056958
+genome	913671
+miRNA_sense	295785
+miRNA_antisense	0
+miRNAprecursor_sense	21765
+miRNAprecursor_antisense	22
+tRNA_sense	21636
+tRNA_antisense	7
+piRNA_sense	29865
+piRNA_antisense	1
+gencode_sense	513462
+gencode_antisense	2544
+circularRNA_sense	5
+circularRNA_antisense	1
+not_mapped_to_genome_or_libs	143287
+#END OF STATS from the exceRpt smallRNA-seq pipeline. Run completed at 2017-06-08--12:11:15
