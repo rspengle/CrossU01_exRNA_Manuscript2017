@@ -20,6 +20,7 @@ library(dendsort)
 library(vegan)
 library(ggbeeswarm)
 library(xlsx)
+library(tools)
 
 # Load previously saved data -------------------------------------------------------------------
 rdata.file="./data/20170901_EQ_Ratio_Plasma_MANUSCRIPT_DATA.RData"
@@ -99,11 +100,14 @@ max.seqLen=25
 min.adjusted.count=1 # minimum adjusted count for plasma pool filtering
 
 # MAKE OUTPUT DIRECTORIES -----------------------------------------------------------
-top.output.directories <- c("main_figures", "supplemental_figures", "tables")
+top.output.directories <- c("main_figures", "supplemental_figures", "tables", "geo_submission")
 main.figures=paste0("FIG", 2:7)
+geo.dirs=c("geo_processed_data_files", "geo_metadata_files")
 to.create <- unlist(sapply(top.output.directories, USE.NAMES = FALSE, simplify=FALSE, function(x){
   if(x=="main_figures"){
     these.dirs <- paste0("./output/", x, "/", main.figures)
+  } else if(x=="geo_submission"){
+    these.dirs <- paste0("./output/", x, "/", geo.dirs)
   } else{
     these.dirs <- paste0("./output/", x)
   }
@@ -221,18 +225,89 @@ function.Fisher.Combined.PValue <- function(P_value_list)
   unlist(P_value)
 }
 
-
-
-# END FUNCTIONS -------------------------------------------------------------------
 # After loading, should see the following in the global env
 #ls()
 #[1] "counts.dt"                 "CROSS.U01.SYNTH.METADATA"  "full.seq.info.equimolar"   "full.seq.info.ratiometric" "sequence.annot"  
+
+# GEO Submission tables -----
+CROSS.U01.METADATA.ALL.GEO <- copy(CROSS.U01.METADATA.ALL)
+CROSS.U01.METADATA.ALL.GEO.synth <- subset(CROSS.U01.METADATA.ALL.GEO, pool!="PlasmaPool")
+CROSS.U01.METADATA.ALL.GEO.plasma <- subset(CROSS.U01.METADATA.ALL.GEO, pool=="PlasmaPool")
+CROSS.U01.METADATA.ALL.GEO.synth[, `:=`(source.name=ifelse(pool=="SynthEQ", 
+                                                                "Synthetic smallRNA; Equimolar Pool",
+                                                                ifelse(pool=="SynthA",
+                                                                       "Synthetic smallRNA; Ratiometric Pool A",
+                                                                       ifelse(pool=="SynthB",
+                                                                              "Synthetic smallRNA; Ratiometric Pool B",
+                                                                              "Unknown"))),
+                                             organism="Synthetic",
+                                             molecule="total RNA",
+                                             description="",
+                                             file.checksum=md5sum(file.path))]
+CROSS.U01.METADATA.ALL.GEO.plasma[, `:=`(source.name="Human Plasma Pool; 11 healthy individuals",
+                                             organism="Homo sapiens",
+                                             sex="Male",
+                                             Age="21-45 years",
+                                             molecule="total RNA",
+                                             description="",
+                                             file.checksum=md5sum(file.path))]
+
+agg.fun <- function(x){
+ paste(unique(basename(x)), collapse=";") 
+}
+CROSS.U01.METADATA.ALL.GEO.EQ.metadata <- dcast.data.table(CROSS.U01.METADATA.ALL.GEO.synth[pool=="SynthEQ" & (file.type == "miRNASense" | file.type == "CalibratorCounts")], 
+                                                                lab.libMethod.pool + lab.libMethod.pool + source.name + organism + Lab + lib.method.detail + lib.method.simple + pool + molecule + description ~  file.type, 
+                                                           fun.aggregate = agg.fun, fill="", value.var = "file.path")
+CROSS.U01.METADATA.ALL.GEO.RATIO.metadata <- dcast.data.table(CROSS.U01.METADATA.ALL.GEO.synth[pool!="SynthEQ" & file.type == "CalibratorCounts"], 
+                                                           lab.libMethod.pool + lab.libMethod.pool + source.name + organism + Lab + lib.method.detail + lib.method.simple + pool + molecule + description ~  file.type, 
+                                                           fun.aggregate = agg.fun, fill="", value.var = "file.path")
+CROSS.U01.METADATA.ALL.GEO.PLASMA.metadata <- dcast.data.table(CROSS.U01.METADATA.ALL.GEO.plasma[file.type == "miRNASense"], 
+                                                              lab.libMethod.pool + lab.libMethod.pool + source.name + organism + sex + Age + Lab + lib.method.detail + lib.method.simple + pool + molecule + description ~  file.type, 
+                                                              fun.aggregate = agg.fun, fill="", value.var = "file.path")
+
+CROSS.U01.METADATA.ALL.GEO.synth.procfiles <- subset(CROSS.U01.METADATA.ALL.GEO.synth, file.type%in%c("miRNASense", "CalibratorCounts"))
+CROSS.U01.METADATA.ALL.GEO.plasma.procfiles <- subset(CROSS.U01.METADATA.ALL.GEO.plasma, file.type%in%c("miRNASense"))
+CROSS.U01.METADATA.ALL.GEO.synth.procfiles[, file.type.geo:=ifelse(file.type=="miRNASense", 
+                                                                   "Mature miRNA Read Counts",
+                                                                   "Mapped Calibrator Counts")]
+CROSS.U01.METADATA.ALL.GEO.plasma.procfiles[, file.type.geo:=ifelse(file.type=="miRNASense", 
+                                                                   "Mature miRNA Read Counts",
+                                                                   "Mapped Calibrator Counts")]
+
+CROSS.U01.METADATA.ALL.GEO.EQ.procfiles <- subset(CROSS.U01.METADATA.ALL.GEO.synth.procfiles, pool=="SynthEQ", select=c("file.path", "file.type.geo", "file.checksum"))
+CROSS.U01.METADATA.ALL.GEO.RATIO.procfiles <- subset(CROSS.U01.METADATA.ALL.GEO.synth.procfiles, pool!="SynthEQ" & file.type=="CalibratorCounts", select=c("file.path", "file.type.geo", "file.checksum"))
+CROSS.U01.METADATA.ALL.GEO.PLASMA.procfiles <- subset(CROSS.U01.METADATA.ALL.GEO.plasma.procfiles, select=c("file.path", "file.type.geo", "file.checksum"))
+
+# copy the files to our geo subdirectory
+old.file.paths <- c(CROSS.U01.METADATA.ALL.GEO.EQ.procfiles$file.path, CROSS.U01.METADATA.ALL.GEO.RATIO.procfiles$file.path, CROSS.U01.METADATA.ALL.GEO.PLASMA.procfiles$file.path)
+new.file.paths <- paste0(outdirs["geo_processed_data_files"], "/", basename(old.file.paths))
+file.copy(old.file.paths, new.file.paths, overwrite=TRUE)
+CROSS.U01.METADATA.ALL.GEO.EQ.procfiles[, file.path:=basename(file.path)]
+CROSS.U01.METADATA.ALL.GEO.RATIO.procfiles[, file.path:=basename(file.path)]
+CROSS.U01.METADATA.ALL.GEO.PLASMA.procfiles[, file.path:=basename(file.path)]
+
+# Make the FASTQ file tabe that will be filled in later by the DMRR, since FASTQ files were located on their remote server
+# ExceRpt generates sample names from the original file names. Use those to get the original fastq file names.
+# Missing info will be filled in manually. Leave as X for now
+CROSS.U01.METADATA.ALL.GEO.fastqs <- CROSS.U01.METADATA.ALL.GEO[, .(file.name=unique(sub("_fastq", ".fastq.gz", sub("sample_", "", FileBaseName))), file.type="fastq", file.checksum="X", instrument.model="X", read.length="X", single.or.paired.end="single"), by=.(FileBaseName, pool)]
+this.outfile <- paste0(outdirs["geo_metadata_files"], "/geo_metadata_information.xlsx")
+write.xlsx(CROSS.U01.METADATA.ALL.GEO.fastqs, this.outfile, sheetName = "ALL_raw_files", row.names = FALSE)
+write.xlsx(CROSS.U01.METADATA.ALL.GEO.EQ.procfiles, this.outfile, sheetName = "EQ_processed_files", row.names = FALSE, append = TRUE)
+write.xlsx(CROSS.U01.METADATA.ALL.GEO.RATIO.procfiles, this.outfile, sheetName = "RATIO_processed_files", row.names = FALSE, append = TRUE)
+write.xlsx(CROSS.U01.METADATA.ALL.GEO.PLASMA.procfiles, this.outfile, sheetName = "PLASMA_processed_files", row.names = FALSE, append = TRUE)
+write.xlsx(CROSS.U01.METADATA.ALL.GEO.EQ.metadata, this.outfile, sheetName = "EQ_SAMPLES", row.names = FALSE, append = TRUE)
+write.xlsx(CROSS.U01.METADATA.ALL.GEO.RATIO.metadata, this.outfile, sheetName = "RATIO_SAMPLES", row.names = FALSE, append = TRUE)
+write.xlsx(CROSS.U01.METADATA.ALL.GEO.PLASMA.metadata, this.outfile, sheetName = "PLASMA_SAMPLES", row.names = FALSE, append = TRUE)
+
+
 
 
 # annotate number of mods for filtering later
 full.seq.info.equimolar[, n.mods.total:=.N, by=sequence]
 full.seq.info.equimolar[, seq.len:=nchar(sequence)]
 seq.ids.equimolar.5p.only <- subset(full.seq.info.equimolar, n.mods.total==1 & modification == "5'-phosphorylation")$equimolar.seqID
+
+
 
 #setnames(counts.dt, "pool.ID", "pool")
 #setnames(CROSS.U01.METADATA.ALL.CAST, "pool.ID", "pool")
@@ -510,8 +585,7 @@ f2b <- ggplot(
     x=NULL,
     y="Average CPM",
     fill=NULL
-  ) 
-print(f2b)
+  ) ; print(f2b)
 ggsave(this.outfile, width=4.6, height=2.75, units = "in")
 
 ## Now use a cutoff to get miRs > x fold from expected and see what % miRs in the different methods
@@ -1145,7 +1219,104 @@ paste(
   collapse="; ")
 # 4"4N_B: 0.13 (0.03, 0.42; n=4); NEBNext_subset: 0.18 (0.04, 0.46; n=4); TruSeq: 0.18 (0.06, 0.45; n=8); NEBNext: 0.25 (0.06, 0.56; n=6); 4N: 0.3 (0.07, 0.82; n=7)"
 
-# missing miRNAs
+
+# Interlab-CV Equimolar All 3V3 Subsets ----
+# Reviwer requested we perform all combinations of 3 labs for inter-lab measures
+comparisons.dt <- data.frame(MEAN.CV.WI.LABS.subgroups[n>2, .(lab.libMethod=unique(lab.libMethod)), by=c("lib.method.group", "lib.method.detail")])
+
+samples.by.method <- split(as.character(comparisons.dt$lab.libMethod), f = comparisons.dt$lib.method.group, drop=TRUE)
+all.combinations <- lapply(lapply(samples.by.method, combn, m=3), t)
+selected.groups <- c("TruSeq", "NEBNext", "NEBNext_subset", "4N_B")
+selected.combinations <- all.combinations[selected.groups]
+setkey(MEAN.CV.WI.LABS.subgroups, c("lab.libMethod"))
+selected.combin.full.inter.cv <- rbindlist(
+                      sapply(1:length(selected.combinations),
+                                  simplify=FALSE, 
+                                  FUN=function(x){
+                                    s.group <- names(selected.combinations)[x]
+                                    all.comb.matr <- selected.combinations[[x]]
+                                    dt.wi.labs <- subset(MEAN.CV.WI.LABS.subgroups, lib.method.group==s.group)
+                                    setkey(dt.wi.labs, lab.libMethod)
+                                    dt.betw <- rbindlist(
+                                      sapply(1:dim(all.comb.matr)[1], simplify=FALSE, FUN=function(y){
+                                        this.set <- all.comb.matr[y,]
+                                        set.cat <- paste(this.set, collapse="|")
+                                        dt.s <- dt.wi.labs[this.set, .(mean.cpm=mean(mean.cpm), sd.cpm=sd(mean.cpm), q1.cpm=quantile(mean.cpm, 0.25), q3.cpm=quantile(mean.cpm, 0.75), n=.N), by=.(equimolar.seqID, lib.method.group, lib.method.detail)]
+                                      dt.s[, `:=`(interlab.cv=100*sd.cpm/mean.cpm, interlab.qcd=((q3.cpm-q1.cpm)/2)/((q3.cpm+q1.cpm)/2))]
+                                      dt.s[, set.combin:=set.cat]
+                                      if(y==1){
+                                        set.cat <- dt.wi.labs[, paste(unique(lab.libMethod), collapse="|")]
+                                        dt.full <- dt.wi.labs[, .(mean.cpm=mean(mean.cpm), sd.cpm=sd(mean.cpm), q1.cpm=quantile(mean.cpm, 0.25), q3.cpm=quantile(mean.cpm, 0.75), n=.N), by=.(equimolar.seqID, lib.method.group, lib.method.detail)]
+                                        dt.full[, `:=`(interlab.cv=100*sd.cpm/mean.cpm, interlab.qcd=((q3.cpm-q1.cpm)/2)/((q3.cpm+q1.cpm)/2))]
+                                        dt.full[, set.combin:=set.cat]
+                                        dt.s <- rbind(dt.full, dt.s)
+                                      }
+                                      return(dt.s)
+                                    }))
+                                    
+                                    
+                                    
+                                    return(dt.betw)
+}))
+
+# NEW FigS6 -- 3-way CV Combinations
+med.cv.dt <- selected.combin.full.inter.cv[n==3, .(med.cv=median(interlab.cv)), by=.(set.combin)]
+setorder(med.cv.dt, -med.cv)
+full.set.ids <- selected.combin.full.inter.cv[n>3, unique(as.character(set.combin))]
+#full.set.labs <- paste0("ALL:n=", nchar(full.set.ids)-nchar(gsub("Lab", "La", full.set.ids)))
+full.set.labs <- paste0("Labs:", gsub("[A-Za-z]|\\.|_", "", gsub("4N", "", full.set.ids)))
+cv.plot.order <- c(med.cv.dt$set.combin, full.set.ids)
+cv.plot.labels <- c(paste0("Labs:", gsub("[A-Za-z]|\\.|_", "", gsub("4N", "", med.cv.dt$set.combin))), full.set.labs)
+names(cv.plot.labels) <- cv.plot.order
+selected.combin.full.inter.cv[, set.combin:=factor(set.combin, levels=cv.plot.order)]
+# SUPP FIG SXX: Equimolar CV combinations -----
+g <- ggplot(selected.combin.full.inter.cv, aes(x=set.combin, y=interlab.cv, fill=lib.method.detail)) + 
+    geom_boxplot(outlier.alpha = 0.5, size=0.5) + 
+  coord_flip() +
+  scale_y_continuous("Interlab %CV", limits=c(0,280), breaks=seq(0,300,25)) +
+  scale_x_discrete(labels=cv.plot.labels) + labs(x=NULL) +
+  scale_fill_manual(values=ann_colors$lib.method.detail) +
+  theme(
+    panel.grid.major = element_line(color = NA),
+    panel.grid.minor = element_line(color = NA),
+    panel.border = element_rect(color = "black"),
+    axis.ticks = element_line(color = "black"),
+    legend.position = "none"
+  )
+g1 <- g %+% selected.combin.full.inter.cv[lib.method.group=="TruSeq"]; g1
+g2 <- g %+% selected.combin.full.inter.cv[lib.method.group=="NEBNext_subset"]; g2
+g3 <- g %+% selected.combin.full.inter.cv[lib.method.detail=="4N_B"]; g3
+g23 <- plot_grid(plotlist = list(g2, g3), ncol = 1, align = "v", rel_heights = c(1, 1))
+g123 <- plot_grid(plotlist = list(g1, g23), ncol=2, align="h", rel_widths=c(1.25,1)); g123
+this.outdir <- paste0(outdirs["supplemental_figures"], "/FIGS6A_Equimolar_CV_All3wayCombinations_Boxplot.pdf")
+save_plot(this.outdir, g123, base_width = 7.5, base_height=8.5)
+
+
+# NEW FigS6 -- 3-way QCD Combinations
+# SUPP FIG S6b: Equimolar CV combinations -----
+g <- ggplot(selected.combin.full.inter.cv, aes(x=set.combin, y=interlab.qcd, fill=lib.method.detail)) + 
+  geom_boxplot(outlier.alpha = 0.5, size=0.5) + 
+  coord_flip() +
+  scale_y_continuous("Interlab QCD", limits=c(0,1), breaks=seq(0, 1, 0.1)) +
+  scale_x_discrete(labels=cv.plot.labels) + labs(x=NULL) +
+  scale_fill_manual(values=ann_colors$lib.method.detail) +
+  theme(
+    panel.grid.major = element_line(color = NA),
+    panel.grid.minor = element_line(color = NA),
+    panel.border = element_rect(color = "black"),
+    axis.ticks = element_line(color = "black"),
+    legend.position = "none"
+  )
+g1 <- g %+% selected.combin.full.inter.cv[lib.method.group=="TruSeq"]; g1
+g2 <- g %+% selected.combin.full.inter.cv[lib.method.group=="NEBNext_subset"]; g2
+g3 <- g %+% selected.combin.full.inter.cv[lib.method.detail=="4N_B"]; g3
+g23 <- plot_grid(plotlist = list(g2, g3), ncol = 1, align = "v", rel_heights = c(1, 1))
+g123 <- plot_grid(plotlist = list(g1, g23), ncol=2, align="h", rel_widths=c(1.25,1)); g123
+this.outdir <- paste0(outdirs["supplemental_figures"], "/FIGS6B_Equimolar_QCD_All3wayCombinations_Boxplot.pdf")
+save_plot(this.outdir, g123, base_width = 7.5, base_height=8.5)
+
+
+# EQ missing miRNAs ----
 total.eq.seqs <- length(unique(FINAL.EQUIMOLAR.LONG$equimolar.seqID))
 FINAL.EQUIMOLAR.LONG[, `:=`(n.replicates.detected=sum(ifelse(count>0, 1, 0)), total.replicates=.N, mean.lib.size=exp(mean(log( count.total.by.sample.filt.lengths)))), by=.(lab.libMethod, Lab, lib.method.detail, lib.method.simple, equimolar.seqID, sequence, seq.len, gc.perc)]
 FINAL.EQUIMOLAR.LONG[, mean.lib.size:=ifelse(n.replicates.detected==total.replicates, mean.lib.size, 0)]
@@ -1178,7 +1349,7 @@ n.samples.summary <- sumTechReps(n.samples, ID = sample.info.eq[colnames(n.sampl
 in.top.ten.agreement.perc <- in.top.ten.agreement/n.samples.summary
 mirs.with.75.perc.agreement.in.top.10 <- names(which(apply(in.top.ten.agreement.perc, 1, max)>=0.75))
 
-FINAL.EQUIMOLAR.LONG.25nt.disp.replicates.top.10 <- subset(FINAL.EQUIMOLAR.LONG.AVERAGE.REPS.FILT,  equimolar.seqID%in%mirs.with.75.perc.agreement.in.top.10)
+FINAL.EQUIMOLAR.LONG.25nt.disp.replicates.top.10 <- subset(FINAL.EQUIMOLAR.LONG.AVERAGE.REPS.FILT,  equimolar.seqID%in%mirs.with.75.perc.agreement.in.top.10 & !lab.libMethod%in%unique(gsub(".[1-4]$|^X", "", drop.eq.samples)))
 FINAL.EQUIMOLAR.LONG.25nt.disp.replicates.top.10.mean <- FINAL.EQUIMOLAR.LONG.25nt.disp.replicates.top.10[, .(lib.meanCPM=mean(mean.pseudo.cpm)), by=.(lib.method.simple, equimolar.seqID)]
 
 # now, instead, divide by the expected value to get a difference from expected
@@ -1214,7 +1385,7 @@ g <- ggplot(FINAL.EQUIMOLAR.LONG.25nt.disp.replicates.top.10.mean,
     #title="Equimolar Pool:\nOver-represented Sequences",
     y="mean CPM observed / expected (log2)",
     fill="Library Prep Method"
-  ) + geom_hline(yintercept = 0, size=1.5)
+  ) + geom_hline(yintercept = 0, size=1.5); g
 ggsave(plot = g, filename = this.outfile, width=5, height=4, units="in")
 
 
@@ -1227,7 +1398,7 @@ n.samples.summary <- sumTechReps(n.samples, ID = sample.info.eq[colnames(in.top.
 in.bottom.ten.agreement.perc <- in.bottom.ten.agreement/n.samples.summary
 mirs.with.75.perc.agreement.in.bottom.10 <- names(which(apply(in.bottom.ten.agreement.perc, 1, max)>=0.75))
 
-FINAL.EQUIMOLAR.LONG.25nt.disp.replicates.bottom.10 <- subset(FINAL.EQUIMOLAR.LONG.AVERAGE.REPS.FILT,  equimolar.seqID%in%mirs.with.75.perc.agreement.in.bottom.10)
+FINAL.EQUIMOLAR.LONG.25nt.disp.replicates.bottom.10 <- subset(FINAL.EQUIMOLAR.LONG.AVERAGE.REPS.FILT,  equimolar.seqID%in%mirs.with.75.perc.agreement.in.bottom.10 & !lab.libMethod%in%unique(gsub(".[1-4]$|^X", "", drop.eq.samples)))
 FINAL.EQUIMOLAR.LONG.25nt.disp.replicates.bottom.10.mean <- FINAL.EQUIMOLAR.LONG.25nt.disp.replicates.bottom.10[, .(lib.meanCPM=mean(mean.pseudo.cpm)), by=.(lib.method.simple, equimolar.seqID)]
 max.cpm.bottom <- max(FINAL.EQUIMOLAR.LONG.25nt.disp.replicates.bottom.10.mean$lib.meanCPM)
 FINAL.EQUIMOLAR.LONG.25nt.disp.replicates.bottom.10.mean[, `:=`(percent.of.expected.value=(lib.meanCPM)/expected.cpm, log.CPM.from.expected=log2(lib.meanCPM/expected.cpm))]
@@ -1844,6 +2015,50 @@ INTRALAB.CV.RATIOMETRIC.SUMMARY <- INTRALAB.CV.RATIOMETRIC[lib.method.detail!="4
 this.outfile <- paste0(outdirs["tables"], "/Ratiometric_intralab_CV_QCD_summary.txt")
 write.table(INTRALAB.CV.RATIOMETRIC.SUMMARY, this.outfile, row.names = FALSE, col.names=TRUE, sep="\t", quote=FALSE)
 
+# INTERLAB CV/QCD Ratiometric Summary Table -------------------------------
+INTRALAB.CV.RATIOMETRIC.subgroups <- subset(INTRALAB.CV.RATIOMETRIC, lab.libMethod!="NEBNext.Lab9" & lab.libMethod!="NEBNext.Lab3")
+INTRALAB.CV.RATIOMETRIC.subgroups[, n:=.N, by=.(pool, lib.method.detail, ratio.seqID)]
+
+MEAN.CV.ACROSS.LABS.RATIO.subgroups <- INTRALAB.CV.RATIOMETRIC.subgroups[n>2, .(mean.cpm=mean(mean.cpm), sd.cpm=sd(mean.cpm), q1.cpm=quantile(mean.cpm, 0.25), q3.cpm=quantile(mean.cpm, 0.75), n=.N), by=.(pool, lib.method.detail, ratio.seqID)]
+MEAN.CV.ACROSS.LABS.RATIO.subgroups[, `:=`(interlab.cv=100*sd.cpm/mean.cpm, interlab.qcd=((q3.cpm-q1.cpm)/2)/((q3.cpm+q1.cpm)/2))]
+MEAN.CV.ACROSS.LABS.RATIO.subgroups[, (sub("^0.", "interlab.cv", summary.quantiles)):=lapply(summary.quantiles, USE.NAMES=FALSE, SIMPLIFY=FALSE, quantile, x=interlab.cv), by=.(pool, lib.method.detail)]
+MEAN.CV.ACROSS.LABS.RATIO.subgroups[, (sub("^0.", "interlab.qcd", summary.quantiles)):=lapply(summary.quantiles, USE.NAMES=FALSE, SIMPLIFY=FALSE, quantile, x=interlab.qcd), by=.(pool, lib.method.detail)]
+
+INTERLAB.CV.RATIOMETRIC.SUMMARY <- subset(unique(MEAN.CV.ACROSS.LABS.RATIO.subgroups, by=c("lib.method.detail", "pool", "n")), select=c("lib.method.detail", "pool", "n", sub("^0.", "interlab.cv", summary.quantiles), sub("^0.", "interlab.qcd", summary.quantiles)))
+this.outfile <- paste0(outdirs["tables"], "/Ratiometric_interlab_CV_QCD_summary.txt")
+write.table(INTERLAB.CV.RATIOMETRIC.SUMMARY, this.outfile, row.names = FALSE, col.names=TRUE, sep="\t", quote=FALSE)
+
+# For in-text INTER-lab RATIOMETRIC CV/QCD summary numbers----
+
+paste(
+  INTERLAB.CV.RATIOMETRIC.SUMMARY[, 
+                                paste0(lib.method.detail, " ", pool,
+                                       ": ", 
+                                       round(interlab.cv5, digits = 2),
+                                       " (", 
+                                       round(interlab.cv02, digits = 2), 
+                                       ", ", 
+                                       round(interlab.cv98, digits = 2),
+                                       "; n=",
+                                       n,  
+                                       ")")], 
+  collapse="; ")
+# "4N_B SynthA: 32.2 (7.89, 87.05; n=4); 4N_B SynthB: 33.67 (8.06, 85.24; n=4); NEBNext SynthA: 36.28 (11.69, 66.68; n=4); NEBNext SynthB: 44.33 (15.24, 73.92; n=4); TruSeq SynthA: 30.81 (14.48, 66.87; n=8); TruSeq SynthB: 32.09 (14.78, 84.25; n=8)"
+
+paste(
+  INTERLAB.CV.RATIOMETRIC.SUMMARY[, 
+                                  paste0(lib.method.detail, " ", pool,
+                                       ": ", 
+                                       round(interlab.qcd5, digits = 2),
+                                       " (", 
+                                       round(interlab.qcd02, digits = 2), 
+                                       ", ", 
+                                       round(interlab.qcd98, digits = 2),
+                                       "; n=",
+                                       n,  
+                                       ")")], 
+  collapse="; ")
+# 4N_B SynthA: 0.15 (0.04, 0.41; n=4); 4N_B SynthB: 0.16 (0.04, 0.45; n=4); NEBNext SynthA: 0.19 (0.06, 0.43; n=4); NEBNext SynthB: 0.22 (0.07, 0.51; n=4); TruSeq SynthA: 0.17 (0.05, 0.43; n=8); TruSeq SynthB: 0.18 (0.05, 0.43; n=8)
 
 
 # SUMMARY CORRELATION COEFFICIENT TABLES FOR RATIOMETRIC POOL -- USING AVERAGE COUNTS AND FOLD CHANGES --------------------------------------------------------------
@@ -2486,6 +2701,7 @@ min.prob.detected=0.90
 #est.prob.detected.n.miRs <- drr.all.filt.summarize.repl[, .(n.detected=sum(ifelse(est.prob.detected.all>=min.prob.detected, 1, 0)), n.not.detected=sum(ifelse(est.prob.detected.all>=min.prob.detected, 0, 1)), n.total=.N), by=.(lab.libMethod, downsample.to, Lab, lib.method.detail, lib.method.simple)]
 est.prob.detected.n.miRs <- drr.all.plasma.filt[, .(n.detected=sum(ifelse(est.prob.detected>=min.prob.detected, 1, 0)), n.not.detected=sum(ifelse(est.prob.detected>=min.prob.detected, 0, 1)), n.total=.N), by=.(lab.libMethod.replicate, lab.libMethod, downsample.to, Lab, lib.method.detail, lib.method.simple)]
 
+# Figure 5D: Plasma Pool miRs detected ------
 this.outfile <- paste0(outdirs["FIG5"], "/FIG5D_miRs_detected_plasmaPool.pdf")
 g <- ggplot(est.prob.detected.n.miRs,
        aes(
@@ -2507,6 +2723,61 @@ g <- ggplot(est.prob.detected.n.miRs,
         axis.ticks = element_line(color="black"),
         legend.position = "none") ; g
 ggsave(this.outfile, g, width = 7, height = 2); g
+
+# Figure 5D: Plasma Pool miRs detected 4NB ------
+this.outfile <- paste0(outdirs["FIG5"], "/FIG5D_miRs_detected_plasmaPool_detail.pdf")
+g <- ggplot(est.prob.detected.n.miRs,
+            aes(
+              x=lib.method.detail,
+              y=n.detected, fill=lib.method.simple)) + 
+  geom_boxplot() + 
+  facet_wrap(~downsample.to, strip.position = "top",  nrow = 1) +
+  labs(x=NULL,
+       y="# miRNAs detected in all samples",
+       strip="log10 Sequencing Depth (total miRNA-mapping reads)") +
+  scale_y_continuous(breaks = seq(0,1000,100)) +
+  theme(panel.grid.minor = element_blank(),
+        axis.text=element_text(color="black"),
+        axis.text.x = element_text(angle=50, hjust=1, color="black"),
+        axis.line=element_line(color="black"),
+        panel.grid.major = element_blank(),
+        panel.spacing = unit(0, "lines"),
+        strip.text=element_text(size=8, color="black"),
+        axis.ticks = element_line(color="black"),
+        legend.position = "none") ; g
+ggsave(this.outfile, g, width = 7.5, height = 2); g
+
+
+
+# Lab separate
+this.outfile <- paste0(outdirs["FIG2"], "/FIG5D_miRs_detected_plasmaPool_labSeparate_QuasiRandom.pdf")
+est.prob.detected.n.miRs[, lib.method.detail:=factor(lib.method.detail, levels = lib.detail.levels)]
+g <- ggplot(est.prob.detected.n.miRs, 
+            aes(
+              x=lib.method.detail,
+              y=n.detected, 
+              color=lib.method.simple,
+              pos=lab.libMethod)) + 
+  stat_summary(
+    #position = position_quasirandom(dodge.width = 0.5, method = "quasirandom"),
+    position = position_beeswarm(cex = 2.5, priority = "descending"),
+    size=0.1, 
+    fun.y = "median", 
+    fun.ymax = "max",
+    fun.ymin = "min") + facet_wrap(~downsample.to, strip.position = "top",  nrow = 1) + scale_y_continuous(breaks = seq(0,1000,100)) +
+  labs(x=NULL,
+       y="# miRNAs detected in all samples",
+       color="Library Prep Method") + theme(
+    axis.text.x=element_text(vjust=1, angle=50, hjust=1),
+    panel.border = element_rect(color="black"),
+    panel.grid.major=element_line(color=NA),
+    panel.grid.minor=element_line(color=NA),
+    legend.position = "none"
+  ); g
+
+ggsave(this.outfile, plot = g,  width = 7, height = 3, units = "in")
+
+
 
 # Scaling factors ----
 # Redo 9-14-17 ----
