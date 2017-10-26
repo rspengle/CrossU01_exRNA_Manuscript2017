@@ -21,116 +21,22 @@ library(vegan)
 library(ggbeeswarm)
 library(xlsx)
 library(tools)
+library(Biostrings)
 
-# Load previously saved data -------------------------------------------------------------------
-rdata.file="./data/20170901_EQ_Ratio_Plasma_MANUSCRIPT_DATA.RData"
-load(rdata.file)
-# Set custom plot theme -------------------------------------------------------------------
-my_theme_bw <- theme_bw(base_size=8)
-theme_set(my_theme_bw)
-my_theme_bw <- theme_update(text=element_text(color="black"), axis.text=element_text(color="black", size=rel(1.0)))
-
-# Subset of NEB labs that were done using identical protocols
-NEB.subset <- c("NEBNext.Lab1", "NEBNext.Lab2", "NEBNext.Lab4", "NEBNext.Lab5")
-
-# Set variable ordering -----------------------------------
-pools <- c("SynthEQ", "Synth[AB]", "PlasmaPool", "*")
-
-new.order <- sapply(pools, simplify=FALSE, function(x){
-  lab.libs <- CROSS.U01.METADATA.ALL[grepl(x, pool), unique(as.character(lab.libMethod))]
-  lab.libs <- lab.libs[order(lab.libs)]
-  n.order <- c(
-    grep("TruSeq.?", lab.libs, value=TRUE, ignore.case=TRUE), 
-    grep("CleanTag.?", lab.libs, value=TRUE, ignore.case=TRUE),
-    grep("NebNext.?", lab.libs, value=TRUE, ignore.case=TRUE),
-    grep("4N_A", lab.libs, value=TRUE, ignore.case=TRUE),
-    grep("4N_B", lab.libs, value=TRUE, ignore.case=TRUE),
-    grep("4N_C", lab.libs, value=TRUE, ignore.case=TRUE),
-    grep("4N_D", lab.libs, value=TRUE, ignore.case=TRUE),
-    grep("4N_Xu", lab.libs, value=TRUE, ignore.case=TRUE),
-    grep("4N_NEXTflex", lab.libs, value=TRUE, ignore.case=TRUE)
-  )
-})
-names(new.order) <- c("equimolar", "ratiometric", "plasma", "all")
-lib.method.simple.names <- unique(as.character(CROSS.U01.METADATA.ALL$lib.method.simple))
-lib.method.simple.ordered <- c(
-  grep("TruSeq", lib.method.simple.names, value=TRUE, ignore.case=TRUE), 
-  grep("CleanTag", lib.method.simple.names, value=TRUE, ignore.case=TRUE),
-  grep("NebNext", lib.method.simple.names, value=TRUE, ignore.case=TRUE),
-  grep("4N", lib.method.simple.names, value=TRUE, ignore.case=TRUE)
-)
-lib.method.detail.names <- unique(as.character(CROSS.U01.METADATA.ALL$lib.method.detail))
-lib.method.detail.ordered <- c(
-  grep("TruSeq.?", lib.method.detail.names, value=TRUE, ignore.case=TRUE), 
-  grep("CleanTag.?", lib.method.detail.names, value=TRUE, ignore.case=TRUE),
-  grep("NebNext.?", lib.method.detail.names, value=TRUE, ignore.case=TRUE),
-  grep("4N_A", lib.method.detail.names, value=TRUE, ignore.case=TRUE),
-  grep("4N_B", lib.method.detail.names, value=TRUE, ignore.case=TRUE),
-  grep("4N_C", lib.method.detail.names, value=TRUE, ignore.case=TRUE),
-  grep("4N_D", lib.method.detail.names, value=TRUE, ignore.case=TRUE),
-  grep("4N_Xu", lib.method.detail.names, value=TRUE, ignore.case=TRUE),
-  grep("4N_NEXTflex", lib.method.detail.names, value=TRUE, ignore.case=TRUE)
-)
-
-
-
-# Custom color pallate for lib methods --------------------
-# Custom palatte.. Does Truseq, CleanTag, NEB and 4N as normal. Then adds a greenish color for DOWNBIAS, and then takes the hue_pal_4 value and shades them for the different 4N methods
-custom.lib.method.pallate <- c(hue_pal()(4)[1:3], hcl(285, c = 100, l = 65, alpha = 0.9*seq(4,1)/4), hue_pal(h=c(300,260))(2))
-n.labs <- max(as.numeric(sub("Lab", "", unique(CROSS.U01.METADATA.ALL$Lab))))
-ann_colors = list(
-  lib.method.simple = custom.lib.method.pallate[1:4],
-  lib.method.detail = custom.lib.method.pallate,
-  Lab = brewer.pal(n.labs, "Blues")
-)
-lib.simple.levels <- lib.method.simple.ordered
-lib.detail.levels <- lib.method.detail.ordered  
-
-names(ann_colors$lib.method.simple) <- lib.simple.levels
-names(ann_colors$lib.method.detail) <- lib.detail.levels
-names(ann_colors$Lab) <- paste0("Lab", 1:n.labs)
-
-
-
-
-# Set global variables -----------------------------------------------------------
+# Set global variables -----
 # Set min and max lenghts to use (based on expected size of sequences in pool)
 min.seqLen=16
 max.seqLen=25
 min.adjusted.count=1 # minimum adjusted count for plasma pool filtering
+# Annotation files -----
+full.seq.info.ratiometric.file <- "data/ratiometric.sequence.annotations.txt"
+full.seq.info.equimolar.file <- "data/equimolar.sequence.annotations.txt"
+synth.fasta.exceRpt.calibrator.seq.file <- "data/20160915_SPIKE-IN_SYNTHETIC_POOL_FULL_CORRECTED.fa"
+CROSS.U01.METADATA.File <- "./data/20170830_CrossU01_Metadata_Cleaned.txt" 
+# Subset of NEB labs that were done using identical protocols
+NEB.subset <- c("NEBNext.Lab1", "NEBNext.Lab2", "NEBNext.Lab4", "NEBNext.Lab5")
 
-# MAKE OUTPUT DIRECTORIES -----------------------------------------------------------
-top.output.directories <- c("main_figures", "supplemental_figures", "tables", "geo_submission")
-main.figures=paste0("FIG", 2:7)
-geo.dirs=c("geo_processed_data_files", "geo_metadata_files")
-to.create <- unlist(sapply(top.output.directories, USE.NAMES = FALSE, simplify=FALSE, function(x){
-  if(x=="main_figures"){
-    these.dirs <- paste0("./output/", x, "/", main.figures)
-  } else if(x=="geo_submission"){
-    these.dirs <- paste0("./output/", x, "/", geo.dirs)
-  } else{
-    these.dirs <- paste0("./output/", x)
-  }
-}), recursive = TRUE)
-sapply(to.create, function(x){
-  if(!dir.exists(x)){
-    dir.create(x, recursive = TRUE)
-  }
-})
-# Provides path to output directories for the 7 main figures and any supplemental tables and figures
-
-outdirs <- to.create
-names(outdirs) <- basename(outdirs)
-# The main figures have subdirectories for each figure
-#outdirs
-#FIG2                            FIG3                            FIG4                            FIG5                            FIG6 
-#"./output/main_figures/FIG2"    "./output/main_figures/FIG3"    "./output/main_figures/FIG4"    "./output/main_figures/FIG5"    "./output/main_figures/FIG6" 
-#FIG7            supplemental_figures                          tables 
-#"./output/main_figures/FIG7" "./output/supplemental_figures"               "./output/tables" 
-
-
-# FUNCTIONS -------------------------------------------------------------------
-# Some functions for later
+# FUNCTIONS --------
 # make a function for averaging technical replicates
 FUNCTION.aveTechReps <- function (x, ID = colnames(x), ...){
   if (is.null(x)) 
@@ -225,9 +131,183 @@ function.Fisher.Combined.PValue <- function(P_value_list)
   unlist(P_value)
 }
 
-# After loading, should see the following in the global env
-#ls()
-#[1] "counts.dt"                 "CROSS.U01.SYNTH.METADATA"  "full.seq.info.equimolar"   "full.seq.info.ratiometric" "sequence.annot"  
+FUNCTION.collapse.IDs <- function(id){
+  multiID = unlist(strsplit(id,"\\|"));
+  multiIDs = sapply(
+    multiID, 
+    function(idPart){
+      unlist(strsplit(idPart,":"))[1]
+    });   
+  if(length(multiIDs) == 1){
+    multiIDs 
+  } else{
+    paste(sort(multiIDs),collapse="|") 
+  }}
+
+# Import and wrangle study data -----
+full.seq.info.ratiometric <- fread(full.seq.info.ratiometric.file)
+full.seq.info.equimolar <- fread(full.seq.info.equimolar.file)
+synth.fasta.exceRpt.calibrator.seqs <- readDNAStringSet(synth.fasta.exceRpt.calibrator.seq.file, use.names=TRUE)
+sequence.annot <- data.table(data.frame(new.seqID=names(synth.fasta.exceRpt.calibrator.seqs), sequence=as.character(synth.fasta.exceRpt.calibrator.seqs), stringsAsFactors = FALSE))
+sequence.annot[, c("equimolar.seqID", "ratio.seqID", "ratio.A", "ratio.B"):=tstrsplit(new.seqID, split=";|\\|")]
+sequence.annot[, colnames(sequence.annot):=lapply(.SD, function(x) ifelse(x=="NA", NA, x))]
+CROSS.U01.METADATA.ALL <- fread(CROSS.U01.METADATA.File)
+setnames(CROSS.U01.METADATA.ALL, "pool.ID", "pool")
+CROSS.U01.METADATA.ALL[, replicate:=as.character(replicate)]
+# Add a couple more grouping variables based on lab, method, pool, replicate, etc
+# Make sure they're valid names as well
+CROSS.U01.METADATA.ALL[, `:=`(lab.libMethod.pool.replicate=paste(lib.method.detail, Lab, pool, replicate, sep="."),
+                              lab.libMethod.pool=paste(lib.method.detail, Lab, pool, sep="."),
+                              lab.libMethod.replicate=paste(lib.method.detail, Lab , replicate, sep="."),
+                              lab.libMethod=paste(lib.method.detail, Lab, sep="."))]
+
+synth.files <- c("SynthA", "SynthB", "SynthEQ")
+CROSS.U01.SYNTH.METADATA <- dcast.data.table(subset(CROSS.U01.METADATA.ALL, pool%in%synth.files), ...~file.type, value.var="file.path", fun.aggregate=paste, sep=";", fill=NA)
+setkey(CROSS.U01.SYNTH.METADATA, "CalibratorCounts")
+
+counts.dt <- rbindlist(sapply(CROSS.U01.SYNTH.METADATA[file.exists(CalibratorCounts)]$CalibratorCounts, USE.NAMES=FALSE, simplify=FALSE, FUN=function(x){
+  dt <- fread(x); # the FileName.Loc variable is passed to sapply as the variable "x". Read this in as a data.table
+  setnames(dt, 1:2, c("count", "new.seqID")) # Column names will be V1 and V2, so set them appropriately
+  dt$CalibratorCounts <- x # add the FileName.Loc value as a new variable in the count data table. Will be used as a key
+  setkey(dt, "CalibratorCounts") # Set the key
+  dt <- merge(CROSS.U01.SYNTH.METADATA, dt) # Use the key to merge with the CROSS_U01 table, which contains the relevant sample info
+  setkey(dt, new.seqID)
+  # Gets the parsed sequence information from a new table. If all names match the corrected names (new.seqID) use that, otherwise use the old ones
+  setkey(sequence.annot, new.seqID)   
+  dt.f <- dt[sequence.annot][!is.na(CalibratorCounts)]        
+  return(dt.f) # Return it to sapply, which will add it to the next element in the output list, which will be concatenated using rbind
+}
+), use.names=TRUE)
+
+
+# Re-ran the genboree pipeline, mapping the synthetic pool sequences all the way through the genboree pipeline without using the calibrator reads. This is for direct comparison of the equimolar pools with the plasma pools.
+CROSS.U01.METADATA.ALL.CAST <- dcast.data.table(CROSS.U01.METADATA.ALL, ...~file.type, value.var="file.path", fun.aggregate=paste, sep=";", fill=NA)
+setkey(CROSS.U01.METADATA.ALL.CAST, miRNASense)
+counts.dt.endog.miRs.all <- rbindlist(sapply(CROSS.U01.METADATA.ALL.CAST[file.exists(miRNASense)]$miRNASense, USE.NAMES=FALSE, simplify=FALSE, FUN=function(x){
+  dt <- fread(x)
+  dt[, miRNASense:=x]
+  setkey(dt, miRNASense)
+  dt <- merge(CROSS.U01.METADATA.ALL.CAST, dt)
+  dt[, miR.ID:=FUNCTION.collapse.IDs(ReferenceID), by=1:nrow(dt)]
+  return(dt)
+}), use.names=TRUE)
+counts.dt.synth.endog.miRs <- subset(counts.dt.endog.miRs.all, pool%in%synth.files)
+
+# get stats and qc files too
+excerpt.stats.genome.dt <- rbindlist(sapply(CROSS.U01.METADATA.ALL.CAST[file.exists(StatsPath.genome)]$StatsPath.genome, USE.NAMES=FALSE, simplify=FALSE, FUN=function(x){
+  dt <- fread(x)
+  dt[, StatsPath.genome:=x]
+  setkey(dt, StatsPath.genome)
+  setkey(CROSS.U01.METADATA.ALL.CAST, StatsPath.genome)
+  dt <- merge(CROSS.U01.METADATA.ALL.CAST, dt)  
+  dt[, runType:="NoCalibrator"]
+  return(dt)
+}), use.names=TRUE)
+excerpt.stats.calib.dt <- rbindlist(sapply(CROSS.U01.METADATA.ALL.CAST[file.exists( StatsPath.calibrator)]$ StatsPath.calibrator, USE.NAMES=FALSE, simplify=FALSE, FUN=function(x){
+  dt <- fread(x)
+  dt[,  StatsPath.calibrator:=x]
+  setkey(dt,  StatsPath.calibrator)
+  setkey(CROSS.U01.METADATA.ALL.CAST,  StatsPath.calibrator)
+  dt <- merge(CROSS.U01.METADATA.ALL.CAST, dt)
+  dt[, runType:="Calibrator"]
+  return(dt)
+}), use.names=TRUE)
+
+EXCERPT.STATS.PLASMA.AND.SYNTHETIC <- dcast.data.table(rbind(excerpt.stats.calib.dt, excerpt.stats.genome.dt), ...~runType, fun.aggregate=sum, fill=NA, value.var="ReadCount")
+
+# Set custom plot theme ------------
+my_theme_bw <- theme_bw(base_size=8)
+theme_set(my_theme_bw)
+my_theme_bw <- theme_update(text=element_text(color="black"), axis.text=element_text(color="black", size=rel(1.0)))
+
+# Set variable ordering -----------------------------------
+pools <- c("SynthEQ", "Synth[AB]", "PlasmaPool", "*")
+
+new.order <- sapply(pools, simplify=FALSE, function(x){
+  lab.libs <- CROSS.U01.METADATA.ALL[grepl(x, pool), unique(as.character(lab.libMethod))]
+  lab.libs <- lab.libs[order(lab.libs)]
+  n.order <- c(
+    grep("TruSeq.?", lab.libs, value=TRUE, ignore.case=TRUE), 
+    grep("CleanTag.?", lab.libs, value=TRUE, ignore.case=TRUE),
+    grep("NebNext.?", lab.libs, value=TRUE, ignore.case=TRUE),
+    grep("4N_A", lab.libs, value=TRUE, ignore.case=TRUE),
+    grep("4N_B", lab.libs, value=TRUE, ignore.case=TRUE),
+    grep("4N_C", lab.libs, value=TRUE, ignore.case=TRUE),
+    grep("4N_D", lab.libs, value=TRUE, ignore.case=TRUE),
+    grep("4N_Xu", lab.libs, value=TRUE, ignore.case=TRUE),
+    grep("4N_NEXTflex", lab.libs, value=TRUE, ignore.case=TRUE)
+  )
+})
+names(new.order) <- c("equimolar", "ratiometric", "plasma", "all")
+lib.method.simple.names <- unique(as.character(CROSS.U01.METADATA.ALL$lib.method.simple))
+lib.method.simple.ordered <- c(
+  grep("TruSeq", lib.method.simple.names, value=TRUE, ignore.case=TRUE), 
+  grep("CleanTag", lib.method.simple.names, value=TRUE, ignore.case=TRUE),
+  grep("NebNext", lib.method.simple.names, value=TRUE, ignore.case=TRUE),
+  grep("4N", lib.method.simple.names, value=TRUE, ignore.case=TRUE)
+)
+lib.method.detail.names <- unique(as.character(CROSS.U01.METADATA.ALL$lib.method.detail))
+lib.method.detail.ordered <- c(
+  grep("TruSeq.?", lib.method.detail.names, value=TRUE, ignore.case=TRUE), 
+  grep("CleanTag.?", lib.method.detail.names, value=TRUE, ignore.case=TRUE),
+  grep("NebNext.?", lib.method.detail.names, value=TRUE, ignore.case=TRUE),
+  grep("4N_A", lib.method.detail.names, value=TRUE, ignore.case=TRUE),
+  grep("4N_B", lib.method.detail.names, value=TRUE, ignore.case=TRUE),
+  grep("4N_C", lib.method.detail.names, value=TRUE, ignore.case=TRUE),
+  grep("4N_D", lib.method.detail.names, value=TRUE, ignore.case=TRUE),
+  grep("4N_Xu", lib.method.detail.names, value=TRUE, ignore.case=TRUE),
+  grep("4N_NEXTflex", lib.method.detail.names, value=TRUE, ignore.case=TRUE)
+)
+
+
+
+# Custom color pallate for lib methods --------------------
+# Custom palatte.. Does Truseq, CleanTag, NEB and 4N as normal. Then adds a greenish color for DOWNBIAS, and then takes the hue_pal_4 value and shades them for the different 4N methods
+custom.lib.method.pallate <- c(hue_pal()(4)[1:3], hcl(285, c = 100, l = 65, alpha = 0.9*seq(4,1)/4), hue_pal(h=c(300,260))(2))
+n.labs <- max(as.numeric(sub("Lab", "", unique(CROSS.U01.METADATA.ALL$Lab))))
+ann_colors = list(
+  lib.method.simple = custom.lib.method.pallate[1:4],
+  lib.method.detail = custom.lib.method.pallate,
+  Lab = brewer.pal(n.labs, "Blues")
+)
+lib.simple.levels <- lib.method.simple.ordered
+lib.detail.levels <- lib.method.detail.ordered  
+
+names(ann_colors$lib.method.simple) <- lib.simple.levels
+names(ann_colors$lib.method.detail) <- lib.detail.levels
+names(ann_colors$Lab) <- paste0("Lab", 1:n.labs)
+
+
+# MAKE OUTPUT DIRECTORIES -----------------------------------------------------------
+top.output.directories <- c("main_figures", "supplemental_figures", "tables", "geo_submission")
+main.figures=paste0("FIG", 2:7)
+geo.dirs=c("geo_processed_data_files", "geo_metadata_files")
+to.create <- unlist(sapply(top.output.directories, USE.NAMES = FALSE, simplify=FALSE, function(x){
+  if(x=="main_figures"){
+    these.dirs <- paste0("./output/", x, "/", main.figures)
+  } else if(x=="geo_submission"){
+    these.dirs <- paste0("./output/", x, "/", geo.dirs)
+  } else{
+    these.dirs <- paste0("./output/", x)
+  }
+}), recursive = TRUE)
+sapply(to.create, function(x){
+  if(!dir.exists(x)){
+    dir.create(x, recursive = TRUE)
+  }
+})
+# Provides path to output directories for the 7 main figures and any supplemental tables and figures
+
+outdirs <- to.create
+names(outdirs) <- basename(outdirs)
+# The main figures have subdirectories for each figure
+#outdirs
+#FIG2                            FIG3                            FIG4                            FIG5                            FIG6 
+#"./output/main_figures/FIG2"    "./output/main_figures/FIG3"    "./output/main_figures/FIG4"    "./output/main_figures/FIG5"    "./output/main_figures/FIG6" 
+#FIG7            supplemental_figures                          tables 
+#"./output/main_figures/FIG7" "./output/supplemental_figures"               "./output/tables" 
+
+
 
 # GEO Submission tables -----
 CROSS.U01.METADATA.ALL.GEO <- copy(CROSS.U01.METADATA.ALL)
