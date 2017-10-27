@@ -15,20 +15,7 @@ library(cowplot)
 library(MASS)
 library(DESeq2)
 library(vegan)
-
-library(gplots)
-library(metaseqR)
-library(cqn)
-library(GGally)
-library(variancePartition)
-
-library(KernSmooth)
 library(dendsort)
-
-
-
-
-
 
 # Set global variables -----
 # Set min and max lenghts to use (based on expected size of sequences in pool)
