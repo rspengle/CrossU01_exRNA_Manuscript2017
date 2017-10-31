@@ -53,3 +53,4 @@ SUPFIG1_MANUSCRIPT_Top_equimolar_miRs_expressed_by_protocol_log_fold_diff_from_e
 SUPPLEMENTAL_FIGS2_downsampling_not_detected_1.svg
 Spearman_correlation_equimolar_Pool_summaries.txt
 output
+packrat/lib*/
