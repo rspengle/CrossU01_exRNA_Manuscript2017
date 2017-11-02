@@ -1,0 +1,33 @@
+auto.snapshot: TRUE
+use.cache: FALSE
+print.banner.on.startup: auto
+vcs.ignore.lib: TRUE
+vcs.ignore.src: FALSE
+external.packages:
+    limma
+    data.table
+    ggplot2
+    Biostrings
+    RColorBrewer
+    scales
+    tools
+    xlsx
+    stringr
+    edgeR
+    pheatmap
+    ggbeeswarm
+    Hmisc
+    cowplot
+    MASS
+    DESeq2
+    vegan
+    dendsort
+local.repos: 
+load.external.packages.on.startup: TRUE
+ignored.packages: 
+quiet.package.installation: TRUE
+snapshot.recommended.packages: FALSE
+snapshot.fields:
+    Imports
+    Depends
+    LinkingTo

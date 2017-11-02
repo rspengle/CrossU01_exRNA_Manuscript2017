@@ -1,4 +1,5 @@
 # Load packages -------------------------------------------------------------------
+library(limma)
 library(data.table)
 library(ggplot2)
 library(Biostrings)
