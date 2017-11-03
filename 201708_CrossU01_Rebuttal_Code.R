@@ -1202,7 +1202,6 @@ g <- ggplot(FINAL.EQUIMOLAR.LONG.25nt.disp.replicates.top.10.mean,
   ) + geom_hline(yintercept = 0, size=1.5); g
 ggsave(plot = g, filename = this.outfile, width=5, height=4, units="in")
 
-
 # Bottom miRs by protocol
 rank.matrix.all.down <- apply(cpm.lrt.filt, 2, rank, ties.method = "min")
 in.bottom.ten <- ifelse(rank.matrix.all.down<=10, 1, 0)
@@ -2354,6 +2353,31 @@ g <- ggplot(est.prob.detected.n.miRs,
         axis.ticks = element_line(color="black"),
         legend.position = "none") ; g
 ggsave(this.outfile, g, width = 7, height = 2); g
+
+
+# Figure 5D: Plasma Pool miRs detected points overlaid------
+this.outfile <- paste0(outdirs["FIG5"], "/FIG5D_miRs_detected_plasmaPool_pointsOverlaid.pdf")
+g <- ggplot(est.prob.detected.n.miRs,
+            aes(
+              x=lib.method.simple,
+              y=n.detected, fill=lib.method.simple)) + 
+  geom_boxplot(alpha=0.5, outlier.color = NA) + geom_jitter(position = position_quasirandom(), alpha=0.7) + 
+  facet_wrap(~downsample.to, nrow = 1) +
+  labs(x=NULL,
+       y="# miRNAs detected in all samples",
+       strip="log10 Sequencing Depth (total miRNA-mapping reads)") +
+  scale_y_continuous(breaks = seq(0,1000,100)) +
+  theme(panel.grid.minor = element_blank(),
+        axis.text=element_text(color="black"),
+        axis.text.x = element_text(angle=50, hjust=1, color="black"),
+        axis.line=element_line(color="black"),
+        panel.grid.major = element_blank(),
+        panel.spacing = unit(0, "lines"),
+        strip.text=element_text(size=8, color="black"),
+        axis.ticks = element_line(color="black"),
+        legend.position = "none") ; g
+ggsave(this.outfile, g, width = 7, height = 2); g
+
 
 # Figure 5D ALT (Not Used): Plasma Pool miRs detected Separate 4N ------
 this.outfile <- paste0(outdirs["FIG5"], "/miRs_detected_plasmaPool_detail_NOT_USED.pdf")
