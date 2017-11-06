@@ -3057,7 +3057,8 @@ this.outfile <- paste0(outdirs["supplemental_figures"], "/FigS9_DensityPlot_Plas
 ggsave(filename = this.outfile, plot = g3, units = "in", width=4, height=3)
 
 
-# Mann-whitney tests for equimolar pool
+# Mann-whitney tests for equimolar pool ----
+show.groups <- c("TruSeq.V.4N_B", "TruSeq.V.NEBNext", "NEBNext.V.4N_B") # comparison groups to include in final plots                                                                    
 MANN.WHITNEY.SHIFTS.EQ <- sapply(all.intermethod.comparison.groups, USE.NAMES=TRUE, simplify = FALSE, FUN=function(x.group){
   correct.dt <- data.frame(subset(ALL.COMPARISON.SCALING.FACTOR.DT.4N.SUBS.AND.ORIG.subset, correction==x.group), row.names=1)
   x.ids <- strsplit2(x.group, split=".V.")
