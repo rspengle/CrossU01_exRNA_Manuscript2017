@@ -482,7 +482,12 @@ equimolar.counts <- subset(counts.all.dt.add.zerocount, pool=="SynthEQ" & !is.na
 equimolar.counts.5p.only.SizeFilt <- subset(equimolar.counts, equimolar.seqID%in%seq.ids.equimolar.5p.only)
 n.unique.seqs <- equimolar.counts.5p.only.SizeFilt[, length(unique(equimolar.seqID))]
 expected.cpm <- 10^6/n.unique.seqs
+min.nonzero.cpm <- equimolar.counts.5p.only.SizeFilt[count>0, min((count*10^6)/count.total.by.sample.filt.lengths)]
+
+equimolar.counts.5p.only.SizeFilt[, min.nonzero.cpm.by.sample:=min(ifelse(count==0, Inf, (count*10^6)/count.total.by.sample.filt.lengths)), by=lab.libMethod.pool.replicate]
 equimolar.counts.5p.only.SizeFilt[, count.plus1:=count+1]
+#equimolar.counts.5p.only.SizeFilt[, count.plus1:=count+(min.nonzero.cpm/10)]
+equimolar.counts.5p.only.SizeFilt[, count.plus1:=count+min.nonzero.cpm.by.sample/10]
 equimolar.counts.5p.only.SizeFilt[, `:=`(count.total.by.sample.filt.lengths=sum(count), count.plus1.total.by.sample.filt.lengths=sum(count.plus1)), by=.(lab.libMethod.pool.replicate)]
 equimolar.counts.5p.only.SizeFilt[, `:=`(
   cpm.filt.lengths=(count*10^6)/count.total.by.sample.filt.lengths,
@@ -626,8 +631,8 @@ f2b <- ggplot(
     alpha=0.8
   ) +
   scale_y_log10(
-    limits=c(10^-2,10^5),
-    breaks = scales::trans_breaks("log10", n = 7,  function(x) 10^x),
+    limits=c(10^-4,10^5),
+    breaks = scales::trans_breaks("log10", n = 9,  function(x) 10^x),
     labels = scales::trans_format("log10", scales::math_format(10^.x))
   ) + 
   annotation_logticks(sides = "l", size = 1, color="black") +
