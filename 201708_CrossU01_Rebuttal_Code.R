@@ -1157,6 +1157,7 @@ dge.eq.filt <- dge.eq[rowSums(dge.eq$counts)>0,]
 dge.eq.filt.lrt.norm <- calcNormFactors(dge.eq.filt, "RLE")
 cpm.lrt <- cpm(dge.eq.filt.lrt.norm, normalized.lib.sizes = TRUE, prior.count = 1)
 drop.eq.samples <- row.names(dge.eq$samples[dge.eq$samples$lib.method.detail%in%c("4N_NEXTflex", "4N_Xu") | dge.eq$samples$lab.libMethod=="TruSeq.Lab8" ,])
+drop.eq.samples.norep <- gsub("^X|.[1-4]$", "", drop.eq.samples)
 cpm.lrt.filt <- cpm.lrt[, !colnames(cpm.lrt)%in%drop.eq.samples]
 cpm.lrt.eq.sample.info <- dge.eq$samples[!row.names(dge.eq$samples)%in%drop.eq.samples,]
 rank.matrix.all <- apply(-1*cpm.lrt.filt, 2, rank, ties.method = "min")
@@ -1169,7 +1170,7 @@ n.samples.summary <- sumTechReps(n.samples, ID = sample.info.eq[colnames(n.sampl
 in.top.ten.agreement.perc <- in.top.ten.agreement/n.samples.summary
 mirs.with.75.perc.agreement.in.top.10 <- names(which(apply(in.top.ten.agreement.perc, 1, max)>=0.75))
 
-FINAL.EQUIMOLAR.LONG.25nt.disp.replicates.top.10 <- subset(FINAL.EQUIMOLAR.LONG.AVERAGE.REPS.FILT,  equimolar.seqID%in%mirs.with.75.perc.agreement.in.top.10 & !lab.libMethod%in%unique(gsub(".[1-4]$|^X", "", drop.eq.samples)))
+FINAL.EQUIMOLAR.LONG.25nt.disp.replicates.top.10 <- subset(FINAL.EQUIMOLAR.LONG.AVERAGE.REPS.FILT,  equimolar.seqID%in%mirs.with.75.perc.agreement.in.top.10 & !lab.libMethod%in%drop.eq.samples.norep)
 FINAL.EQUIMOLAR.LONG.25nt.disp.replicates.top.10.mean <- FINAL.EQUIMOLAR.LONG.25nt.disp.replicates.top.10[, .(lib.meanCPM=mean(mean.pseudo.cpm)), by=.(lib.method.simple, equimolar.seqID)]
 
 # now, instead, divide by the expected value to get a difference from expected
@@ -1248,6 +1249,109 @@ this.outfile <- paste0(outdirs["supplemental_figures"], "/SUP1B_Bottom_equimolar
     ) + geom_hline(yintercept = 0, size=1.5); g
   ggsave(plot = g, filename = this.outfile, width=6, height=4, units="in")
 
+# Fig S1 Alternative. Show separate points -----
+top.rank.dt <- data.table(melt(rank.matrix.all))
+bottom.rank.dt <- data.table(melt(rank.matrix.all.down))
+setnames(top.rank.dt, c("equimolar.seqID", "lab.libMethod.replicate", "rank"))
+setnames(bottom.rank.dt, c("equimolar.seqID", "lab.libMethod.replicate", "rank"))
+top.rank.dt[, rank.type:="highest.expr.rank1"]
+bottom.rank.dt[, rank.type:="lowest.expr.rank1"]
+eq.rank.dt <- rbind(top.rank.dt, bottom.rank.dt)
+eq.rank.dt[, equimolar.seqID:=sub("MIR", "miR", equimolar.seqID)]
+eq.rank.dt[, lab.libMethod.replicate:=gsub("^X", "", lab.libMethod.replicate)]
+setkeyv(eq.rank.dt, c("equimolar.seqID", "lab.libMethod.replicate"))
+eq.rank.dt[, lib.method.detail:=tstrsplit(lab.libMethod.replicate, split=".", fixed=TRUE)[1]]
+eq.rank.dt[, lib.method.simple:=tstrsplit(lib.method.detail, split="_", fixed=TRUE)[1]]
+eq.rank.dt[, `:=`(lib.method.detail=factor(lib.method.detail, levels=lib.detail.levels), lib.method.simple=factor(lib.method.simple, levels=lib.simple.levels))]
+eq.rank.dt.rank.q <- eq.rank.dt[, .(rankP75=quantile(rank, 0.75, type=4)), by=.(equimolar.seqID, lib.method.simple, rank.type)]
+top.miR.list <- eq.rank.dt.rank.q[rankP75<=10 & rank.type=="highest.expr.rank1", min(rankP75), by=equimolar.seqID]
+setorder(top.miR.list, V1)
+bottom.miR.list <- eq.rank.dt.rank.q[rankP75<=10 & rank.type=="lowest.expr.rank1", min(rankP75), by=equimolar.seqID]
+setorder(bottom.miR.list, V1)
+
+FINAL.EQUIMOLAR.LONG.copy <- copy(FINAL.EQUIMOLAR.LONG)
+FINAL.EQUIMOLAR.LONG.copy[, log.CPM.from.expected:=log2(pseudo.cpm.filt.lengths/expected.cpm)]
+FINAL.EQUIMOLAR.LONG.copy[, equimolar.seqID:=sub("MIR", "miR", equimolar.seqID)]
+FINAL.EQUIMOLAR.LONG.copy.top <- subset(FINAL.EQUIMOLAR.LONG.copy, equimolar.seqID%in%top.miR.list$equimolar.seqID & !lab.libMethod.replicate%in%sub("^X", "", drop.eq.samples))
+setkeyv(FINAL.EQUIMOLAR.LONG.copy.top, c("equimolar.seqID", "lab.libMethod.replicate"))
+setkeyv(eq.rank.dt, c("equimolar.seqID", "lab.libMethod.replicate"))
+FINAL.EQUIMOLAR.LONG.copy.top[eq.rank.dt[rank.type=="highest.expr.rank1"], rank:=rank]
+FINAL.EQUIMOLAR.LONG.copy.top[, is.top10:=rank<=10]
+top.10.cols <- c("TRUE" = "orange", "FALSE" = "black")
+this.outfile <- paste0(outdirs["supplemental_figures"], "/FIG_S1A_TOP_equimolar_miRs_expressed_by_protocol_log_fold_diff_from_expected_POINTS.pdf")
+g <- ggplot(FINAL.EQUIMOLAR.LONG.copy.top, 
+       aes(x=lib.method.simple, 
+           y=log.CPM.from.expected,
+           fill=lib.method.simple,
+           group=lib.method.simple)) + 
+  geom_hline(yintercept = 0, size=0.3, lty=2) +
+  geom_boxplot(pos=position_dodge(width=0.5), width=0.9, size=0.5, alpha=0.5, outlier.color = NA) +
+  geom_quasirandom(alpha=0.75, size=0.3, width = 0.4,
+                   dodge.width = 0.5,
+                   aes(color=is.top10)) + 
+  facet_wrap(~equimolar.seqID, nrow=3) + 
+  scale_color_manual(values = top.10.cols) +
+  theme(panel.border = element_rect(size=1),
+    axis.text=element_text(size=8, color="black"),
+    axis.line.x=element_line(color="black"),
+    axis.line.y=element_line(color="black"),
+    axis.text.x=element_text(angle=50, hjust=1),
+    axis.title=element_text(size=8),
+    plot.title=element_text(size=8),
+    panel.grid.major = element_blank(),
+    panel.spacing = unit(0, "lines"),
+    strip.text=element_text(size=8, color="black"),
+    axis.ticks = element_line(color="black"),
+    panel.grid.minor = element_blank(),
+    legend.position = "none"
+  ) + labs(
+    x=NULL,
+    #title="Equimolar Pool:\nOver-represented Sequences",
+    y="CPM observed / expected (log2)",
+    fill="Top 10 Abundance"
+  );  g
+ggsave(plot = g, filename = this.outfile, width=7.75, height=5.0, units="in")
+
+FINAL.EQUIMOLAR.LONG.copy.bottom <- subset(FINAL.EQUIMOLAR.LONG.copy, equimolar.seqID%in%bottom.miR.list$equimolar.seqID & !lab.libMethod.replicate%in%sub("^X", "", drop.eq.samples))
+setkeyv(FINAL.EQUIMOLAR.LONG.copy.bottom, c("equimolar.seqID", "lab.libMethod.replicate"))
+setkeyv(eq.rank.dt, c("equimolar.seqID", "lab.libMethod.replicate"))
+FINAL.EQUIMOLAR.LONG.copy.bottom[eq.rank.dt[rank.type=="lowest.expr.rank1"], rank:=rank]
+FINAL.EQUIMOLAR.LONG.copy.bottom[, is.top10:=rank<=10]
+bottom.10.cols <- c("TRUE" = "orange", "FALSE" = "black")
+this.outfile <- paste0(outdirs["supplemental_figures"], "/FIG_S1B_bottom_equimolar_miRs_expressed_by_protocol_log_fold_diff_from_expected_POINTS.pdf")
+g <- ggplot(FINAL.EQUIMOLAR.LONG.copy.bottom, 
+            aes(x=lib.method.simple, 
+                y=log.CPM.from.expected,
+                fill=lib.method.simple,
+                group=lib.method.simple)) + 
+  geom_hline(yintercept = 0, size=0.3, lty=2) +
+  geom_boxplot(pos=position_dodge(width=0.5), width=0.9, size=0.5, alpha=0.5, outlier.color = NA) +
+  geom_quasirandom(alpha=0.75, size=0.3, width = 0.4,
+                   dodge.width = 0.5,
+                   aes(color=is.top10)) + 
+  facet_wrap(~equimolar.seqID, nrow=3) + 
+  scale_y_continuous(breaks=seq(-16,4,2)) +
+  scale_color_manual(values = bottom.10.cols) +
+  theme(panel.border = element_rect(size=1),
+        axis.text=element_text(size=8, color="black"),
+        axis.line.x=element_line(color="black"),
+        axis.line.y=element_line(color="black"),
+        axis.text.x=element_text(angle=50, hjust=1),
+        axis.title=element_text(size=8),
+        plot.title=element_text(size=8),
+        panel.grid.major = element_blank(),
+        panel.spacing = unit(0, "lines"),
+        strip.text=element_text(size=8, color="black"),
+        axis.ticks = element_line(color="black"),
+        panel.grid.minor = element_blank(),
+        legend.position = "none"
+  ) + labs(
+    x=NULL,
+    #title="Equimolar Pool:\nOver-represented Sequences",
+    y="CPM observed / expected (log2)",
+    fill="Bottom 10 Abundance"
+  );  g
+ggsave(plot = g, filename = this.outfile, width=7.75, height=5.0, units="in")
 
 # RATIOMETRIC WRANGLING --------------------------
 ratiometric.counts <- subset(counts.all.dt.add.zerocount, pool!="SynthEQ" & !is.na(ratio.seqID))
