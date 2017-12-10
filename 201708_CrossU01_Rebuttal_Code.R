@@ -2442,12 +2442,13 @@ est.prob.detected.n.miRs <- drr.all.plasma.filt[, .(n.detected=sum(ifelse(est.pr
 
 # Figure 5D: Plasma Pool miRs detected ------
 this.outfile <- paste0(outdirs["FIG5"], "/FIG5D_miRs_detected_plasmaPool.pdf")
+est.prob.detected.n.miRs[, downsample.to.f:=factor(downsample.to, levels = rev(unique(est.prob.detected.n.miRs$downsample.to)))]
 g <- ggplot(est.prob.detected.n.miRs,
        aes(
          x=lib.method.simple,
          y=n.detected, fill=lib.method.simple)) + 
   geom_boxplot() + 
-  facet_wrap(~downsample.to, nrow = 1) +
+  facet_wrap(~downsample.to, , nrow = 1) +
   labs(x=NULL,
     y="# miRNAs detected in all samples",
     strip="log10 Sequencing Depth (total miRNA-mapping reads)") +
@@ -2470,8 +2471,8 @@ g <- ggplot(est.prob.detected.n.miRs,
             aes(
               x=lib.method.simple,
               y=n.detected, fill=lib.method.simple)) + 
-  geom_boxplot(alpha=0.5, outlier.color = NA) + geom_jitter(position = position_quasirandom(), alpha=0.7) + 
-  facet_wrap(~downsample.to, nrow = 1) +
+  geom_boxplot(alpha=0.5, width=0.9, outlier.color = NA) + geom_jitter(position = position_quasirandom(width = 0.4), alpha=0.7) + 
+  facet_wrap(~downsample.to.f, nrow = 1) +
   labs(x=NULL,
        y="# miRNAs detected in all samples",
        strip="log10 Sequencing Depth (total miRNA-mapping reads)") +
@@ -2485,7 +2486,7 @@ g <- ggplot(est.prob.detected.n.miRs,
         strip.text=element_text(size=8, color="black"),
         axis.ticks = element_line(color="black"),
         legend.position = "none") ; g
-ggsave(this.outfile, g, width = 7, height = 2); g
+ggsave(this.outfile, g, width = 7, height = 2.25); g
 
 
 # Figure 5D ALT (Not Used): Plasma Pool miRs detected Separate 4N ------
