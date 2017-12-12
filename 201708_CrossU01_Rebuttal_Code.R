@@ -1277,7 +1277,7 @@ setkeyv(FINAL.EQUIMOLAR.LONG.copy.top, c("equimolar.seqID", "lab.libMethod.repli
 setkeyv(eq.rank.dt, c("equimolar.seqID", "lab.libMethod.replicate"))
 FINAL.EQUIMOLAR.LONG.copy.top[eq.rank.dt[rank.type=="highest.expr.rank1"], rank:=rank]
 FINAL.EQUIMOLAR.LONG.copy.top[, is.top10:=rank<=10]
-top.10.cols <- c("TRUE" = "orange", "FALSE" = "black")
+#top.10.cols <- c("TRUE" = "orange", "FALSE" = "black")
 this.outfile <- paste0(outdirs["supplemental_figures"], "/FIG_S1A_TOP_equimolar_miRs_expressed_by_protocol_log_fold_diff_from_expected_POINTS.pdf")
 g <- ggplot(FINAL.EQUIMOLAR.LONG.copy.top, 
        aes(x=lib.method.simple, 
@@ -1287,8 +1287,7 @@ g <- ggplot(FINAL.EQUIMOLAR.LONG.copy.top,
   geom_hline(yintercept = 0, size=0.3, lty=2) +
   geom_boxplot(pos=position_dodge(width=0.5), width=0.9, size=0.5, alpha=0.5, outlier.color = NA) +
   geom_quasirandom(alpha=0.75, size=0.3, width = 0.4,
-                   dodge.width = 0.5,
-                   aes(color=is.top10)) + 
+                   dodge.width = 0.5) + 
   facet_wrap(~equimolar.seqID, nrow=3) + 
   scale_color_manual(values = top.10.cols) +
   theme(panel.border = element_rect(size=1),
@@ -1317,9 +1316,9 @@ setkeyv(FINAL.EQUIMOLAR.LONG.copy.bottom, c("equimolar.seqID", "lab.libMethod.re
 setkeyv(eq.rank.dt, c("equimolar.seqID", "lab.libMethod.replicate"))
 FINAL.EQUIMOLAR.LONG.copy.bottom[eq.rank.dt[rank.type=="lowest.expr.rank1"], rank:=rank]
 FINAL.EQUIMOLAR.LONG.copy.bottom[, is.top10:=rank<=10]
-bottom.10.cols <- c("TRUE" = "orange", "FALSE" = "black")
+#bottom.10.cols <- c("TRUE" = "orange", "FALSE" = "black")
 this.outfile <- paste0(outdirs["supplemental_figures"], "/FIG_S1B_bottom_equimolar_miRs_expressed_by_protocol_log_fold_diff_from_expected_POINTS.pdf")
-g <- ggplot(FINAL.EQUIMOLAR.LONG.copy.bottom, 
+g <- ggplot(FINAL.EQUIMOLAR.LONG.copy.bottom[lib.method.simple!="4N" | lib.method.detail=="4N_B"], 
             aes(x=lib.method.simple, 
                 y=log.CPM.from.expected,
                 fill=lib.method.simple,
@@ -1327,8 +1326,7 @@ g <- ggplot(FINAL.EQUIMOLAR.LONG.copy.bottom,
   geom_hline(yintercept = 0, size=0.3, lty=2) +
   geom_boxplot(pos=position_dodge(width=0.5), width=0.9, size=0.5, alpha=0.5, outlier.color = NA) +
   geom_quasirandom(alpha=0.75, size=0.3, width = 0.4,
-                   dodge.width = 0.5,
-                   aes(color=is.top10)) + 
+                   dodge.width = 0.5) + 
   facet_wrap(~equimolar.seqID, nrow=3) + 
   scale_y_continuous(breaks=seq(-16,4,2)) +
   scale_color_manual(values = bottom.10.cols) +
