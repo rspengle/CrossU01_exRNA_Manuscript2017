@@ -1603,10 +1603,10 @@ write.xlsx(all.ratio.topTables.limma.summary, this.outfile, row.names=FALSE, col
 # FIG3B: Ratiometric Correlation HEatmap -------------------------------------------------------------------
 ave.cpm.ratio.sampleA2 <- (data.frame(dcast.data.table(FINAL.RATIOMETRIC.LONG.AVERAGE.REPS.CAST.AvsB, ratio.seqID~lab.libMethod, value.var="mean.cpm_SynthA", fill=0), row.names=1))
 ave.cpm.ratio.sampleB2 <- (data.frame(dcast.data.table(FINAL.RATIOMETRIC.LONG.AVERAGE.REPS.CAST.AvsB, ratio.seqID~lab.libMethod, value.var="mean.cpm_SynthB", fill=0), row.names=1))
-full.spearman.ratio.sampleAB.ratio2 <- (data.frame(dcast.data.table(FINAL.RATIOMETRIC.LONG.AVERAGE.REPS.CAST.AvsB, ratio.seqID~lab.libMethod, value.var="ratio.AvsB.Measured", fill=0), row.names=1))
+ratio.sampleAB.ratio2 <- (data.frame(dcast.data.table(FINAL.RATIOMETRIC.LONG.AVERAGE.REPS.CAST.AvsB, ratio.seqID~lab.libMethod, value.var="ratio.AvsB.Measured", fill=0), row.names=1))
 full.spearman.ave.CPM.A2 <- cor(ave.cpm.ratio.sampleA2, use = "pair", method = "spearman")^2
 full.spearman.ave.CPM.B2 <- cor(ave.cpm.ratio.sampleB2, use = "pair", method = "spearman")^2
-full.spearman.ratio.sampleAB.ratio2 <- cor(full.spearman.ratio.sampleAB.ratio2, use = "pair", method = "spearman")^2
+full.spearman.ratio.sampleAB.ratio2 <- cor(ratio.sampleAB.ratio2, use = "pair", method = "spearman")^2
 dimnames(full.spearman.ave.CPM.A2) <- lapply(dimnames(full.spearman.ave.CPM.A2), sub, pattern = "^X", replacement =  "")
 dimnames(full.spearman.ave.CPM.B2) <- lapply(dimnames(full.spearman.ave.CPM.B2), sub, pattern = "^X", replacement =  "")
 dimnames(full.spearman.ratio.sampleAB.ratio2) <- lapply(dimnames(full.spearman.ratio.sampleAB.ratio2), sub, pattern = "^X", replacement =  "")
