@@ -395,7 +395,7 @@ CROSS.U01.METADATA.ALL.GEO.PLASMA.procfiles <- subset(CROSS.U01.METADATA.ALL.GEO
 # copy the files to our geo subdirectory
 old.file.paths <- c(CROSS.U01.METADATA.ALL.GEO.EQ.procfiles$file.path, CROSS.U01.METADATA.ALL.GEO.RATIO.procfiles$file.path, CROSS.U01.METADATA.ALL.GEO.PLASMA.procfiles$file.path)
 new.file.paths <- paste0(outdirs["geo_processed_data_files"], "/", basename(old.file.paths))
-file.copy(old.file.paths, new.file.paths, overwrite=TRUE)
+# file.copy(old.file.paths, new.file.paths, overwrite=TRUE)
 CROSS.U01.METADATA.ALL.GEO.EQ.procfiles[, file.path:=basename(file.path)]
 CROSS.U01.METADATA.ALL.GEO.RATIO.procfiles[, file.path:=basename(file.path)]
 CROSS.U01.METADATA.ALL.GEO.PLASMA.procfiles[, file.path:=basename(file.path)]
