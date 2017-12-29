@@ -434,6 +434,7 @@ counts.all.dt[, seq.len:=nchar(sequence)]
 counts.all.dt[, gc.perc:=nchar(str_replace_all(sequence, pattern="[ATU]", replacement=""))/seq.len]
 counts.all.dt.sizeFilt <- subset(counts.all.dt, seq.len>=min.seqLen & seq.len<=max.seqLen) # Filter for size
 counts.all.dt.add.zerocount <- merge(CROSS.U01.SYNTH.METADATA, counts.all.dt.sizeFilt)
+counts.all.dt.ALL.zerocount <- merge(CROSS.U01.SYNTH.METADATA, counts.all.dt)
 
 # ExceRpt QC Metrics ----
 # Supplemental Table S3a: Synthetic Pool QC Metrics ----
@@ -478,6 +479,7 @@ write.xlsx(EXCERPT.STATS.PLASMA.OUTPUT, file = this.outfile, sheetName = "PLASMA
 
 # MORE EQUIMOLAR WRANGLING -------
 equimolar.counts <- subset(counts.all.dt.add.zerocount, pool=="SynthEQ" & !is.na(equimolar.seqID))
+
 # Keep only equimolar seequences with a 5' Phosphate. Remove if there is another ID with the same sequence, but a different modification (see above)
 equimolar.counts.5p.only.SizeFilt <- subset(equimolar.counts, equimolar.seqID%in%seq.ids.equimolar.5p.only)
 n.unique.seqs <- equimolar.counts.5p.only.SizeFilt[, length(unique(equimolar.seqID))]
@@ -487,8 +489,15 @@ min.nonzero.cpm <- equimolar.counts.5p.only.SizeFilt[count>0, min((count*10^6)/c
 equimolar.counts.5p.only.SizeFilt[, min.nonzero.cpm.by.sample:=min(ifelse(count==0, Inf, (count*10^6)/count.total.by.sample.filt.lengths)), by=lab.libMethod.pool.replicate]
 equimolar.counts.5p.only.SizeFilt[, count.plus1:=count+1]
 #equimolar.counts.5p.only.SizeFilt[, count.plus1:=count+(min.nonzero.cpm/10)]
-equimolar.counts.5p.only.SizeFilt[, count.plus1:=count+min.nonzero.cpm.by.sample/10]
-equimolar.counts.5p.only.SizeFilt[, `:=`(count.total.by.sample.filt.lengths=sum(count), count.plus1.total.by.sample.filt.lengths=sum(count.plus1)), by=.(lab.libMethod.pool.replicate)]
+# equimolar.counts.5p.only.SizeFilt[, count.plus1:=count+min.nonzero.cpm.by.sample/10]
+
+# Based on EdgeR's calculation of CPM. Used this in response to reviwer's request, since the calculation they requested wasn't entirely clear
+mean.lib.size.eq <- equimolar.counts.5p.only.SizeFilt[lab.libMethod!="4N_NEXTflex.Lab8", sum(count), by=lab.libMethod.pool.replicate][, mean(V1)]
+prior.count <- 0.25
+equimolar.counts.5p.only.SizeFilt[, `:=`(count.total.by.sample.filt.lengths=sum(count)), by=.(lab.libMethod.pool.replicate)]
+equimolar.counts.5p.only.SizeFilt[, count.plus1:=(count+prior.count*(count.total.by.sample.filt.lengths/mean.lib.size.eq))]
+# USED: equimolar.counts.5p.only.SizeFilt[, `:=`(count.plus1.total.by.sample.filt.lengths=sum(count.plus1)), by=.(lab.libMethod.pool.replicate)]
+equimolar.counts.5p.only.SizeFilt[, `:=`(count.plus1.total.by.sample.filt.lengths=count.total.by.sample.filt.lengths+(2*prior.count*count.total.by.sample.filt.lengths/mean.lib.size.eq))]
 equimolar.counts.5p.only.SizeFilt[, `:=`(
   cpm.filt.lengths=(count*10^6)/count.total.by.sample.filt.lengths,
   pseudo.cpm.filt.lengths=(count.plus1*10^6)/count.plus1.total.by.sample.filt.lengths,
