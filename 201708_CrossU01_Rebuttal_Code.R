@@ -491,13 +491,19 @@ equimolar.counts.5p.only.SizeFilt[, count.plus1:=count+1]
 #equimolar.counts.5p.only.SizeFilt[, count.plus1:=count+(min.nonzero.cpm/10)]
 # equimolar.counts.5p.only.SizeFilt[, count.plus1:=count+min.nonzero.cpm.by.sample/10]
 
+# Equimolar CPM Calculation used Resubmission 2 ----
 # Based on EdgeR's calculation of CPM. Used this in response to reviwer's request, since the calculation they requested wasn't entirely clear
-mean.lib.size.eq <- equimolar.counts.5p.only.SizeFilt[lab.libMethod!="4N_NEXTflex.Lab8", sum(count), by=lab.libMethod.pool.replicate][, mean(V1)]
-prior.count <- 0.25
+mean.lib.size.eq <- equimolar.counts.5p.only.SizeFilt[lab.libMethod!="4N_NEXTflex.Lab8", sum(count), by=lab.libMethod.pool.replicate][, mean(V1)] 
+prior.count <- 0.25 # Default prior count used by edgeR's cpm.DGElist function
 equimolar.counts.5p.only.SizeFilt[, `:=`(count.total.by.sample.filt.lengths=sum(count)), by=.(lab.libMethod.pool.replicate)]
+# Add prior count. Replicates calculation from edgeR::addPriorCount()
 equimolar.counts.5p.only.SizeFilt[, count.plus1:=(count+prior.count*(count.total.by.sample.filt.lengths/mean.lib.size.eq))]
-# USED: equimolar.counts.5p.only.SizeFilt[, `:=`(count.plus1.total.by.sample.filt.lengths=sum(count.plus1)), by=.(lab.libMethod.pool.replicate)]
+# OLD: equimolar.counts.5p.only.SizeFilt[, `:=`(count.plus1.total.by.sample.filt.lengths=sum(count.plus1)), by=.(lab.libMethod.pool.replicate)]
+# Get modified count total as done in addPriorCount, only dont log-transform. Adds 2 x the prior-count value scaled by the library size
 equimolar.counts.5p.only.SizeFilt[, `:=`(count.plus1.total.by.sample.filt.lengths=count.total.by.sample.filt.lengths+(2*prior.count*count.total.by.sample.filt.lengths/mean.lib.size.eq))]
+
+# Makes the CPM calculations
+# The modified "pseudo-cpm" is contained in "pseudo.cpm.filt.lengths"
 equimolar.counts.5p.only.SizeFilt[, `:=`(
   cpm.filt.lengths=(count*10^6)/count.total.by.sample.filt.lengths,
   pseudo.cpm.filt.lengths=(count.plus1*10^6)/count.plus1.total.by.sample.filt.lengths,
@@ -570,14 +576,14 @@ full.seq.info.equimolar.merge[, included.in.analysis:=ifelse(new.seqID%in%FINAL.
 setkey(full.seq.info.equimolar.merge, new.seqID)
 equimolar.counts.all.dt.ALL.zerocount <- subset(counts.all.dt.ALL.zerocount, pool=="SynthEQ" & !is.na(equimolar.seqID))
 setkey(equimolar.counts.all.dt.ALL.zerocount, new.seqID)
-equimolar.counts.all.with.seqinfo <- merge(equimolar.counts.all.dt.ALL.zerocount, subset(full.seq.info.equimolar.merge, select=c("new.seqID", "n.mods.total", "modification", "included.in.analysis")))
+equimolar.counts.all.with.seqinfo <- merge(equimolar.counts.all.dt.ALL.zerocount[lab.libMethod!="4N_NEXTflex.Lab8"], subset(full.seq.info.equimolar.merge, select=c("new.seqID", "n.mods.total", "modification", "included.in.analysis")))
 equimolar.counts.all.with.seqinfo[, `:=`(lab.libMethod=factor(lab.libMethod, levels=new.order$equimolar),
         lib.method.simple=factor(lib.method.simple, levels=lib.method.simple.ordered),
         lib.method.detail=factor(lib.method.detail, levels=lib.method.detail.ordered))]
 equimolar.counts.all.with.seqinfo[, count.total.by.sample:=sum(count), by=lab.libMethod.replicate]
 n.unique.seqs.all <- full.seq.info.equimolar[, length(unique(new.seqID))]
 expected.cpm.all <- 10^6/n.unique.seqs.all
-min.nonzero.cpm.all <- equimolar.counts.all.with.seqinfo[count>0, min((count*10^6)/count.total.by.sample)]
+# min.nonzero.cpm.all <- equimolar.counts.all.with.seqinfo[count>0, min((count*10^6)/count.total.by.sample)]
 
 
 # Count detection of filtered sequences
@@ -597,7 +603,6 @@ equimolar.counts.all.with.seqinfo.detected.no5p[, perc.detected:=n.detected/n.to
 equimolar.counts.all.with.seqinfo.detected.no5p[, .(mean.n.detected=mean(n.detected), mean.perc=mean(perc.detected), p98.perc=quantile(perc.detected, 0.98), p02=quantile(perc.detected, 0.02)), by=.(n.total)]
 
 # Try getting undetected similar to what we did with the eq pool later
-
 equimolar.counts.all.with.seqinfo.summary <- equimolar.counts.all.with.seqinfo[, .(n.replicates.detected=sum(ifelse(count>0, 1, 0)), total.replicates=.N), by=.(lab.libMethod, Lab, lib.method.detail, lib.method.simple, new.seqID, equimolar.seqID, sequence, seq.len, gc.perc, modification, length.filt)]
 equimolar.counts.all.with.seqinfo.summary.counts <- equimolar.counts.all.with.seqinfo.summary[, .(n.missing.any=sum(ifelse(n.replicates.detected<total.replicates, 1, 0)), n.total=sum(ifelse(n.replicates.detected<total.replicates, 1, 1))), by=.(lab.libMethod, Lab, lib.method.detail, lib.method.simple, modification, length.filt)]
 
@@ -607,24 +612,28 @@ equimolar.counts.all.with.seqinfo.summary.counts[, percent.missing.in.any:=n.mis
 equimolar.counts.all.with.seqinfo.summary.counts.cast <- dcast.data.table(equimolar.counts.all.with.seqinfo.summary.counts[modification!="5'-phosphorylation_AND_2'O-methylation at 3' end;5'-phosphorylation"], lab.libMethod+Lab+lib.method.detail+lib.method.simple~modification+length.filt, value.var = "percent.missing.in.any", fill=0)
 setnames(equimolar.counts.all.with.seqinfo.summary.counts.cast, make.names(sub("\'", "P", colnames(equimolar.counts.all.with.seqinfo.summary.counts.cast))))
 
-equimolar.counts.all.with.seqinfo[, count.plus1:=count+min.nonzero.cpm.all/10]
-equimolar.counts.all.with.seqinfo[, `:=`(count.plus1.total.by.sample=sum(count.plus1)), by=.(lab.libMethod.replicate)]
+# SUPPLENTAL FIGURES--BIAS EXPLANATORY FACTORS ----
+#prior.count <- 0.25 # Default prior count used by edgeR's cpm.DGElist function same as before
+equimolar.counts.all.with.seqinfo[, count.total.by.sample:=sum(count), by=.(lab.libMethod.pool.replicate)]
+mean.lib.size.eq.all <- equimolar.counts.all.with.seqinfo[, mean(count.total.by.sample), by=lab.libMethod.pool.replicate][, mean(V1)] 
+
+# Add prior count. Replicates calculation from edgeR::addPriorCount()
+equimolar.counts.all.with.seqinfo[, count.plus1:=(count+prior.count*(count.total.by.sample/mean.lib.size.eq.all))]
+
+# Get modified count total as done in addPriorCount, only dont log-transform. Adds 2 x the prior-count value scaled by the library size
+equimolar.counts.all.with.seqinfo[, `:=`(count.plus1.total.by.sample=count.total.by.sample+(2*prior.count*count.total.by.sample/mean.lib.size.eq.all))]
 equimolar.counts.all.with.seqinfo[, `:=`(
   cpm=(count*10^6)/count.total.by.sample,
   pseudo.cpm=(count.plus1*10^6)/count.plus1.total.by.sample,
   expected.count=count.plus1.total.by.sample/n.unique.seqs.all,
   expected.countplus1=count.plus1.total.by.sample/n.unique.seqs.all)]
-equimolar.counts.all.with.seqinfo[, `:=`(logratio.count.vs.expected=log2(count/expected.count),
-                                         logratio.countplus1.vs.expected=log2(count.plus1/expected.countplus1))]
 equimolar.counts.all.AVERAGE.REPS <- equimolar.counts.all.with.seqinfo[, .(mean.cpm=mean(cpm),
                                                                                 mean.pseudo.cpm=mean(pseudo.cpm),
                                                                                 sd.cpm=sd(cpm),
                                                                                 sd.pseudo.cpm=sd(pseudo.cpm),
                                                                                 geomean.cpm=exp(mean(log(pseudo.cpm))),
                                                                                 geo.sd.cpm=exp(sd(log(pseudo.cpm))),
-                                                                                mean.logratio.countplus1.vs.expected=mean(logratio.countplus1.vs.expected),
                                                                                 ln.cpm.test = sqrt(exp(sd(log(pseudo.cpm))^2)-1),
-                                                                                sd.logratio.countplus1.vs.expected=sd(logratio.countplus1.vs.expected),
                                                                                 n.present = sum(ifelse(count>0, 1, 0))), 
                                                                        by=.(lab.libMethod, Lab, lib.method.detail, lib.method.simple, new.seqID, equimolar.seqID, sequence, seq.len, gc.perc, n.mods.total, modification, included.in.analysis)]
 equimolar.counts.all.AVERAGE.REPS[, modification:=factor(modification, 
@@ -693,14 +702,16 @@ equimolar.counts.all.AVERAGE.REPS[unafold.seqinfo.dt, `:=`(dG=dG, dH=dH, dS=dS, 
 equimolar.counts.all.AVERAGE.REPS.count.miRs <- equimolar.counts.all.AVERAGE.REPS[, .(n.seqs=uniqueN(equimolar.seqID)), by=.(lab.libMethod, lib.method.simple, length.bins, modification)]
 equimolar.counts.all.AVERAGE.REPS[, filt.group:=paste0(modification, "_", length.ok), by=1:nrow(equimolar.counts.all.AVERAGE.REPS)]
 equimolar.counts.all.AVERAGE.REPS[, filt.group:=factor(filt.group, levels=c("5pPhos_OK", "5pPhos+3p2OMe AND 5pPhos_OK", "5pPhos_TOO.LONG", "5pPhos_TOO.SHORT", "none_TOO.LONG", "none_TOO.SHORT", "3pPhos_TOO.LONG", "3pPhos_TOO.SHORT"), labels=c("5'P / PASS", "5pPhos+3p2OMe AND 5pPhos_OK", "5'P / Too Long", "5'p / Too Short", "Unmodified / Too Long", "Unmodified / Too Short", "3'P / Too Long", "3'P / Too Short"))]
+equimolar.counts.all.AVERAGE.REPS[, n.reps.total:=max(n.present), by=lab.libMethod]
 
+# SUP Fig Bias of End Modifications ----
 this.outfile <- paste0(outdirs["supplemental_figures"], "/ModLengthFilters_VS_CountBias.pdf")
 g <- ggplot(equimolar.counts.all.AVERAGE.REPS[modification!="5pPhos+3p2OMe AND 5pPhos" & lab.libMethod!="4N_NEXTflex.Lab8"], aes(x=filt.group, y=mean.pseudo.cpm)) + 
   #geom_violin(position = "dodge", draw_quantiles = c(0.25, 0.5, 0.75)) +
   geom_quasirandom(aes(color=lib.method.simple), alpha=0.6, size=0.25) +
-  geom_boxplot(outlier.colour = NA) +
+  geom_boxplot(outlier.colour = NA, fill=NA) +
   scale_y_log10(
-  limits=c(10^-4,10^5),
+  limits=c(10^-2,10^5),
   breaks = scales::trans_breaks("log10", n = 9,  function(x) 10^x),
   labels = scales::trans_format("log10", scales::math_format(10^.x))
 ) + labs(x=NULL, y="CPM") +
@@ -717,6 +728,7 @@ equimolar.counts.all.AVERAGE.REPS.f[, `:=`(dG.f=cut(dG, breaks=c(quantile(dG, pr
                                            dH.f=cut(dH, breaks=c(quantile(dH, probs=seq(0, 1, by=0.1))),  include.lowest = TRUE),
                                            dS.f=cut(dS, breaks=c(quantile(dS, probs=seq(0, 1, by=0.1))),  include.lowest = TRUE),
                                            Tm.f=cut(Tm, breaks=c(quantile(Tm, probs=seq(0, 1, by=0.1))),  include.lowest = TRUE))]
+# SUP Figure UNAfold ----
 this.outfile <- paste0(outdirs["supplemental_figures"], "/UNAfold_dG_deciles_VS_CountBias.pdf")
 g <- ggplot(equimolar.counts.all.AVERAGE.REPS.f, aes(x=dG.f, fill=lib.method.simple, y=mean.pseudo.cpm)) + 
   #geom_violin(position = "dodge", draw_quantiles = c(0.25, 0.5, 0.75)) +
@@ -724,7 +736,7 @@ g <- ggplot(equimolar.counts.all.AVERAGE.REPS.f, aes(x=dG.f, fill=lib.method.sim
   #geom_quasirandom(aes(color=lib.method.simple), alpha=0.6, size=0.25) +
   #geom_point(alpha=0.5) +
   scale_y_log10(
-    limits=c(10^-4,10^5),
+    limits=c(10^-2,10^5),
     breaks = scales::trans_breaks("log10", n = 9,  function(x) 10^x),
     labels = scales::trans_format("log10", scales::math_format(10^.x))
   ) + labs(y="CPM", title="dG", x="dG") +
@@ -742,7 +754,7 @@ g <- ggplot(equimolar.counts.all.AVERAGE.REPS.f, aes(x=dS.f, fill=lib.method.sim
   #geom_quasirandom(aes(color=lib.method.simple), alpha=0.6, size=0.25) +
   #geom_point(alpha=0.5) +
   scale_y_log10(
-    limits=c(10^-4,10^5),
+    limits=c(10^-2,10^5),
     breaks = scales::trans_breaks("log10", n = 9,  function(x) 10^x),
     labels = scales::trans_format("log10", scales::math_format(10^.x))
   ) + labs(y="CPM", title="dS", x="dS") +
@@ -760,7 +772,7 @@ g <- ggplot(equimolar.counts.all.AVERAGE.REPS.f, aes(x=dH.f, fill=lib.method.sim
   #geom_quasirandom(aes(color=lib.method.simple), alpha=0.6, size=0.25) +
   #geom_point(alpha=0.5) +
   scale_y_log10(
-    limits=c(10^-4,10^5),
+    limits=c(10^-2,10^5),
     breaks = scales::trans_breaks("log10", n = 9,  function(x) 10^x),
     labels = scales::trans_format("log10", scales::math_format(10^.x))
   ) + labs(y="CPM", title="dH", x="dH") +
@@ -778,7 +790,7 @@ g <- ggplot(equimolar.counts.all.AVERAGE.REPS.f, aes(x=Tm.f, fill=lib.method.sim
   #geom_quasirandom(aes(color=lib.method.simple), alpha=0.6, size=0.25) +
   #geom_point(alpha=0.5) +
   scale_y_log10(
-    limits=c(10^-4,10^5),
+    limits=c(10^-2,10^5),
     breaks = scales::trans_breaks("log10", n = 9,  function(x) 10^x),
     labels = scales::trans_format("log10", scales::math_format(10^.x))
   ) + labs(y="CPM", title="Tm (C)", x="Tm (C)") +
@@ -794,15 +806,16 @@ equimolar.counts.all.AVERAGE.REPS.filt <- subset(equimolar.counts.all.AVERAGE.RE
 # First NT Bias ----
 this.outfile <- paste0(outdirs["supplemental_figures"], "/NTBias_VS_CountBias.pdf")
 g1 <- ggplot(equimolar.counts.all.AVERAGE.REPS.filt, aes(x=lab.libMethod, fill=lib.method.simple, alpha=first.nt, pos=first.nt, y=mean.pseudo.cpm)) + 
-  geom_boxplot(position = "dodge", size=0.5, outlier.size = 0.25) +
+  geom_boxplot(position = position_dodge(width = 0.9), width=0.6, size=0.5, outlier.size = 0.25, outlier.alpha = 1) +
   scale_y_log10(
-    limits=c(10^-4,10^5),
+    limits=c(10^-2,10^5),
     breaks = scales::trans_breaks("log10", n = 9,  function(x) 10^x),
     labels = scales::trans_format("log10", scales::math_format(10^.x))
-  ) + labs(x=NULL, y="CPM") +
+  ) + labs(x=NULL, y="CPM") + scale_x_discrete(expand=c(0,1)) +
   annotation_logticks(sides = "l", size = 0.5, color="black") + theme(
     axis.text.x=element_text(color="black", hjust=1, angle=50),
-    panel.grid.major = element_line(color=NA),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
     panel.border = element_rect(size=1, color="black"),
     axis.ticks = element_line(color="black"),
     legend.position = "top",
@@ -811,29 +824,29 @@ g1 <- ggplot(equimolar.counts.all.AVERAGE.REPS.filt, aes(x=lab.libMethod, fill=l
     legend.background = element_rect(fill=NA)
   ) ; g1 
 g2 <- ggplot(equimolar.counts.all.AVERAGE.REPS.filt, aes(x=lab.libMethod, fill=lib.method.simple, alpha=last.nt, pos=last.nt, y=mean.pseudo.cpm)) + 
-  geom_boxplot(position = "dodge", size=0.5, outlier.size = 0.25) +
+  geom_boxplot(position = position_dodge(width = 0.9), width=0.6, size=0.5, outlier.size = 0.25, outlier.alpha = 1) +
   scale_y_log10(
-    limits=c(10^-4,10^5),
+    limits=c(10^-2,10^5),
     breaks = scales::trans_breaks("log10", n = 9,  function(x) 10^x),
     labels = scales::trans_format("log10", scales::math_format(10^.x))
-  ) + labs(x=NULL, y="CPM") +
-  annotation_logticks(sides = "l", size = 0.25, color="black") + theme(
+  ) + labs(x=NULL, y="CPM") + scale_x_discrete(expand=c(0,1)) +
+  annotation_logticks(sides = "l", size = 0.5, color="black") + theme(
     axis.text.x=element_text(color="black", hjust=1, angle=50),
-    panel.grid.major = element_line(color=NA),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
     panel.border = element_rect(size=1, color="black"),
     axis.ticks = element_line(color="black"),
-    legend.position = "none"
-    #legend.position = "top",
-    #legend.direction = "horizontal",
-    #legend.key.size=unit(1, "lines"),
-    #legend.background = element_rect(fill=NA)
+    legend.position = "top",
+    legend.direction = "horizontal",
+    legend.key.size=unit(1, "lines"),
+    legend.background = element_rect(fill=NA)
   ) ; g2 
 g12 <- plot_grid(plotlist=list(g1, g2), labels = c("5P NT", "3P NT"), nrow = 2, ncol=1)
 save_plot(this.outfile, g12, ncol = 1, nrow = 2, base_width = 7.75)
 
 this.outfile <- paste0(outdirs["supplemental_figures"], "/ENDNT_Bias_interaction_VS_CountBias.pdf")
 gend <- ggplot(equimolar.counts.all.AVERAGE.REPS.filt, aes(x=first.nt, fill=lib.method.simple, alpha=last.nt, pos=last.nt, y=mean.pseudo.cpm)) + 
-  geom_boxplot(position = "dodge", size=0.5, outlier.size = 0.25) +
+  geom_boxplot(position = position_dodge(width = 0.8), width=0.6, size=0.5, outlier.size = 0.25) +
   scale_y_log10(
     #limits=c(10^-4,10^5),
     breaks = scales::trans_breaks("log10", n = 6,  function(x) 10^x),
@@ -851,7 +864,7 @@ gend <- ggplot(equimolar.counts.all.AVERAGE.REPS.filt, aes(x=first.nt, fill=lib.
     legend.key.size=unit(1, "lines"),
     legend.background = element_rect(fill=NA)
   ) + facet_wrap(~lab.libMethod, ncol=4); gend 
-ggsave(this.outfile, gend, width = 8, height=9)
+ggsave(this.outfile, gend, width = 7.75, height=9)
 # Text for legend with "n's"
 paste0("5'nt / 3'nt = n sequences: ", paste(equimolar.counts.all.AVERAGE.REPS[, uniqueN(sequence), by=.(first.nt, last.nt)][, paste0(first.nt, "/", last.nt, " = ", V1 )], collapse=", "))
 # "5'nt / 3'nt = n sequences: T/C = 60, T/A = 115, A/T = 150, G/G = 34, G/C = 42, T/G = 109, A/G = 61, A/A = 65, C/G = 54, G/A = 46, C/A = 38, G/T = 46, A/C = 80, C/T = 63, C/C = 37, T/T = 148"
@@ -868,7 +881,7 @@ this.outfile <- paste0(outdirs["supplemental_figures"], "/4NTBias5p_VS_CountBias
 gend <- ggplot(equimolar.counts.all.AVERAGE.REPS.filt, aes(x=factor(first.4nt.percGC*100), fill=lib.method.simple, y=mean.pseudo.cpm)) + 
   geom_boxplot(position = "dodge", size=0.5, outlier.size = 0.25) +
   scale_y_log10(
-    limits=c(10^-4,10^5),
+    limits=c(10^-2,10^5),
     breaks = scales::trans_breaks("log10", n = 6,  function(x) 10^x),
     labels = scales::trans_format("log10", scales::math_format(10^.x))
   ) + labs(x="5'P nt 1-4 %GC", y="CPM", title="%GC: 5'nt 1-4") +
@@ -891,7 +904,7 @@ this.outfile <- paste0(outdirs["supplemental_figures"], "/4NTBias3p_VS_CountBias
 gend <- ggplot(equimolar.counts.all.AVERAGE.REPS.filt, aes(x=factor(last.4nt.percGC*100), fill=lib.method.simple, y=mean.pseudo.cpm)) + 
   geom_boxplot(position = "dodge", size=0.5, outlier.size = 0.25) +
   scale_y_log10(
-    limits=c(10^-4,10^5),
+    limits=c(10^-2,10^5),
     breaks = scales::trans_breaks("log10", n = 6,  function(x) 10^x),
     labels = scales::trans_format("log10", scales::math_format(10^.x))
   ) + labs(x="3'P nt 1-4 %GC", y="CPM", title="%GC: 3'nt 1-4") +
@@ -910,7 +923,7 @@ paste0("%GC = n sequences: ", paste(equimolar.counts.all.AVERAGE.REPS.filt[order
 
 this.outfile <- paste0(outdirs["supplemental_figures"], "/END4NTGC_Bias_interaction_VS_CountBias.pdf")
 gend <- ggplot(equimolar.counts.all.AVERAGE.REPS.filt, aes(x=factor(first.4nt.percGC*100), fill=lib.method.simple, pos=factor(last.4nt.percGC*100), alpha=factor(last.4nt.percGC*100), y=mean.pseudo.cpm)) + 
-  geom_boxplot(position = position_dodge(0.75), size=0.5, outlier.size = 0.25) +
+  geom_boxplot(position = position_dodge(width = 0.8), width=0.6, size=0.5, outlier.size = 0.25) +
   scale_y_log10(
     #limits=c(10^-4,10^5),
     breaks = scales::trans_breaks("log10", n = 6,  function(x) 10^x),
@@ -992,13 +1005,13 @@ gend <- ggplot(equimolar.counts.all.AVERAGE.REPS.filt, aes(x=gc.bins, fill=lib.m
   ) + facet_wrap(~lab.libMethod, scale="free_y", ncol=4); gend 
 
 this.outfile <- paste0(outdirs["supplemental_figures"], "/GCPerc_VS_CountBias.pdf")
-gend <- ggplot(equimolar.counts.all.AVERAGE.REPS.filt, aes(x=gc.perc, y=mean.pseudo.cpm)) + 
-  geom_point() +
+gend <- ggplot(equimolar.counts.all.AVERAGE.REPS.filt, aes(x=gc.perc*100, y=mean.pseudo.cpm)) + 
+  geom_point(alpha=0.5) +
   scale_y_log10(
     #limits=c(10^-4,10^5),
     breaks = scales::trans_breaks("log10", n = 6,  function(x) 10^x),
     labels = scales::trans_format("log10", scales::math_format(10^.x))
-  ) + labs(x="tM", y="CPM") +
+  ) + labs(x="%GC", y="CPM") + scale_x_continuous(limits = c(0,100)) +
   theme(
     axis.text.x=element_text(color="black"),
     panel.grid.major = element_line(color=NA),
@@ -1010,30 +1023,6 @@ gend <- ggplot(equimolar.counts.all.AVERAGE.REPS.filt, aes(x=gc.perc, y=mean.pse
     legend.background = element_rect(fill=NA)
   ) + facet_wrap(~lab.libMethod, ncol=4); gend 
 ggsave(this.outfile, gend,  width = 7.75, height=9)
-
-mfold.dG.vals <- fread("20171219_mfold_output_dG_all_synth_pool.txt")
-mfold.dG.vals.min <- mfold.dG.vals[, .(dGFolding.min=min(dGFolding)), by=sequence]
-setkey(mfold.dG.vals.min, sequence)
-setkey(equimolar.counts.all.AVERAGE.REPS.filt, sequence)
-equimolar.counts.all.AVERAGE.REPS.filt[mfold.dG.vals.min, mfold.dGFold:=dGFolding.min]
-
-gend <- ggplot(equimolar.counts.all.AVERAGE.REPS.filt, aes(x=mfold.dGFold, y=mean.pseudo.cpm)) + 
-  geom_point() +
-  scale_y_log10(
-    #limits=c(10^-4,10^5),
-    breaks = scales::trans_breaks("log10", n = 6,  function(x) 10^x),
-    labels = scales::trans_format("log10", scales::math_format(10^.x))
-  ) + labs(y="CPM") +
-  theme(
-    axis.text.x=element_text(color="black"),
-    panel.grid.major = element_line(color=NA),
-    panel.border = element_rect(size=1, color="black"),
-    axis.ticks = element_line(color="black"),
-    legend.position = "top",
-    legend.direction = "horizontal",
-    legend.key.size=unit(1, "lines"),
-    legend.background = element_rect(fill=NA)
-  ) + facet_wrap(~lab.libMethod, ncol=4); gend 
 
 
 
@@ -1115,7 +1104,7 @@ f2b <- ggplot(
     alpha=0.8
   ) +
   scale_y_log10(
-    limits=c(10^-4,10^5),
+    limits=c(10^-2,10^5),
     breaks = scales::trans_breaks("log10", n = 9,  function(x) 10^x),
     labels = scales::trans_format("log10", scales::math_format(10^.x))
   ) + 
