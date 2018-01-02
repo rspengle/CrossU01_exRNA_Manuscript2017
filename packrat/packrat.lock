@@ -226,12 +226,6 @@ Version: 1.1.0
 Hash: e29764e47f2faf0cd5b74cbcddc3fa9c
 Requires: tibble
 
-Package: caTools
-Source: CRAN
-Version: 1.17.1
-Hash: 97cb6f6293cd18d17df77a6383cc6763
-Requires: bitops
-
 Package: checkmate
 Source: CRAN
 Version: 1.8.5
@@ -290,11 +284,6 @@ Package: foreign
 Source: CRAN
 Version: 0.8-69
 Hash: 6cb09ceba757189aff90eb9bb72c8983
-
-Package: formatR
-Source: CRAN
-Version: 1.5
-Hash: 258cf79a8dbeedf1c981cdb53837d2af
 
 Package: futile.logger
 Source: CRAN
@@ -523,12 +512,6 @@ Source: CRAN
 Version: 4.1-11
 Hash: 3516bc1f3ef8bc532ac4194a2007ac19
 
-Package: rprojroot
-Source: CRAN
-Version: 1.2
-Hash: fdcac51a7f47decd60556ceefc3c26b1
-Requires: backports
-
 Package: scales
 Source: CRAN
 Version: 0.5.0
@@ -540,11 +523,6 @@ Package: snow
 Source: CRAN
 Version: 0.4-2
 Hash: bf705214a3d32b037dd24940931c289e
-
-Package: statmod
-Source: CRAN
-Version: 1.4.30
-Hash: 8056353aa1923b5e708d08d83f02fe16
 
 Package: stringi
 Source: CRAN
