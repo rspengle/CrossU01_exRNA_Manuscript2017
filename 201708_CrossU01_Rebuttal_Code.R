@@ -485,15 +485,160 @@ equimolar.counts <- subset(counts.all.dt.add.zerocount, pool=="SynthEQ" & !is.na
 equimolar.counts.5p.only.SizeFilt <- subset(equimolar.counts, equimolar.seqID%in%seq.ids.equimolar.5p.only)
 n.unique.seqs <- equimolar.counts.5p.only.SizeFilt[, length(unique(equimolar.seqID))]
 expected.cpm <- 10^6/n.unique.seqs
+equimolar.counts.5p.only.SizeFilt[, `:=`(count.total.by.sample.filt.lengths=sum(count)), by=.(lab.libMethod.pool.replicate)]
 min.nonzero.cpm <- equimolar.counts.5p.only.SizeFilt[count>0, min((count*10^6)/count.total.by.sample.filt.lengths)]
 
 equimolar.counts.5p.only.SizeFilt[, min.nonzero.cpm.by.sample:=min(ifelse(count==0, Inf, (count*10^6)/count.total.by.sample.filt.lengths)), by=lab.libMethod.pool.replicate]
-equimolar.counts.5p.only.SizeFilt[, count.plus1:=count+1]
-#equimolar.counts.5p.only.SizeFilt[, count.plus1:=count+(min.nonzero.cpm/10)]
-# equimolar.counts.5p.only.SizeFilt[, count.plus1:=count+min.nonzero.cpm.by.sample/10]
 
-# Equimolar CPM Calculation used Resubmission 2 ----
 # Based on EdgeR's calculation of CPM. Used this in response to reviwer's request, since the calculation they requested wasn't entirely clear
+# REVIEWER REQUEST 2-23-18: Show impact of different ways of calculating CPM for reviewer request ----
+equimolar.counts.5p.only.SizeFilt.copy <- subset(equimolar.counts.5p.only.SizeFilt, lab.libMethod!="4N_NEXTflex.Lab8")
+mean.lib.size.eq <- equimolar.counts.5p.only.SizeFilt.copy[, .(tot=sum(count)), by=lab.libMethod.pool.replicate][, mean(tot)] 
+prior.count <- 0.25 # Default prior count used by edgeR's cpm.DGElist function
+min.nonzero.cpm <- equimolar.counts.5p.only.SizeFilt.copy[count>0, min((count*10^6)/count.total.by.sample.filt.lengths)]
+equimolar.counts.5p.only.SizeFilt.copy[, `:=`(count.plus1=count+1,
+                                              count.plus0.1=count+0.1, 
+                                              count.plus0.01=count+0.01, 
+                                              count.plus0.001=count+0.001, 
+                                              count.plus0.0001=count+0.0001, 
+                                              count.plus.overall.mincpm.div10=count+(min.nonzero.cpm/10),
+                                              count.plus.replicate.mincpm.div10=count+min.nonzero.cpm.by.sample/10)]
+equimolar.counts.5p.only.SizeFilt.copy[, `:=`(cpm=count*10^6/count.total.by.sample.filt.lengths,
+                                              cpm.plus1=count.plus1*10^6/sum(count.plus1),
+                                              cpm.plus0.1=count.plus0.1*10^6/sum(count.plus0.1),
+                                              cpm.plus0.01=count.plus0.01*10^6/sum(count.plus0.01),
+                                              cpm.plus0.001=count.plus0.001*10^6/sum(count.plus0.001),
+                                              cpm.plus0.0001=count.plus0.0001*10^6/sum(count.plus0.0001),
+                                              cpm.plus.overall.mincpm.div10=count.plus.overall.mincpm.div10*10^6/sum(count.plus1),
+                                              cpm.plus.replicate.mincpm.div10=count.plus.replicate.mincpm.div10*10^6/sum(count.plus1)), 
+                                       by=lab.libMethod.pool.replicate]
+equimolar.counts.5p.only.SizeFilt.copy[, count.edgeR.prior:=(count+prior.count*(count.total.by.sample.filt.lengths/mean.lib.size.eq))]
+equimolar.counts.5p.only.SizeFilt.copy[, `:=`(count.edgeR.prior.total=count.total.by.sample.filt.lengths+(2*prior.count*count.total.by.sample.filt.lengths/mean.lib.size.eq))]
+equimolar.counts.5p.only.SizeFilt.copy[, `:=`(cpm.add.overall.mincpm.div10=cpm+min.nonzero.cpm/10,
+                                              cpm.add.replicate.mincpm.div10=cpm+min.nonzero.cpm.by.sample/10,
+                                              cpm.edgeR.prior=count.edgeR.prior*10^6/count.edgeR.prior.total)]
+equimolar.counts.5p.only.SizeFilt.copy[, `:=`(lab.libMethod=factor(lab.libMethod, levels=new.order$equimolar),
+                                              lib.method.simple=factor(lib.method.simple, levels=lib.method.simple.ordered),
+                                              lib.method.detail=factor(lib.method.detail, levels=lib.method.detail.ordered))]
+
+cpm.cols <- grep("^cpm", colnames(equimolar.counts.5p.only.SizeFilt.copy), value=TRUE)
+equimolar.counts.5p.only.SizeFilt.copy.melt <- melt.data.table(equimolar.counts.5p.only.SizeFilt.copy, measure.vars = cpm.cols, variable.name = "cpm.measure.id", value.name = "cpm")
+setkeyv(equimolar.counts.5p.only.SizeFilt.copy.melt, c("lab.libMethod", "lib.method.simple", "lib.method.detail", "equimolar.seqID", "cpm.measure.id", "Lab"))
+equimolar.counts.copy.mean.cv.withinlabs <- equimolar.counts.5p.only.SizeFilt.copy.melt[, 
+                                                                                        .(mean.cpm=mean(cpm), 
+                                                                                          sd.cpm=sd(cpm), 
+                                                                                          q1.cpm=quantile(cpm, 0.25),
+                                                                                          q3.cpm=quantile(cpm, 0.75),
+                                                                                          n=.N),
+                                                                                        by=.(lab.libMethod, lib.method.simple, lib.method.detail, equimolar.seqID, cpm.measure.id, Lab)]
+equimolar.counts.copy.mean.cv.withinlabs[, `:=`(intralab.cv=100*sd.cpm/mean.cpm, intralab.qcd=((q3.cpm-q1.cpm)/2)/((q3.cpm+q1.cpm)/2))]
+
+
+# FIG2B EQUIMOLAR BIAS VIOLIN ----
+this.outfile <- paste0(outdirs["supplemental_figures"], "/FIGS2_ViolinPlot_equimolar_bias_altCPM_withLegend_Truseq.pdf")
+g <- ggplot(equimolar.counts.copy.mean.cv.withinlabs[lib.method.detail!="4N_NEXTflex"],
+            aes(x = Lab,
+                pos=cpm.measure.id,
+                y = mean.cpm,
+                fill=cpm.measure.id))  +
+  geom_violin(draw_quantiles = c(0.25, 0.5, 0.75), pos=position_dodge(width = 0.9)) +
+  scale_y_log10(
+    limits=c(10^-5.5,10^5),
+    breaks = scales::trans_breaks("log10", n = 9,  function(x) 10^x),
+    labels = scales::trans_format("log10", scales::math_format(10^.x))
+  ) + 
+  annotation_logticks(sides = "l", size = 1, color="black") +
+  theme(
+    panel.grid.major = element_line(color=NA),
+    panel.border = element_rect(size=1, color="black"),
+    axis.ticks = element_line(color="black"),
+    # legend.position = "none"
+    legend.position = "top",
+    legend.direction = "horizontal",
+    legend.key.size=unit(1, "lines"),
+    legend.background = element_rect(fill=NA)
+  ) +
+  labs(
+    #title="EQUIMOLAR POOL:\nAVERAGE COUNTS-PER-MILLION",
+    x=NULL,
+    y="Average CPM",
+    fill=NULL
+  ) + facet_wrap(~lib.method.detail, ncol=1); g %+% equimolar.counts.copy.mean.cv.withinlabs[lib.method.detail=="TruSeq"]
+ggsave(this.outfile, width = 8, height=4)
+g <- g + theme(legend.position = "none")
+
+g1 <- g %+% equimolar.counts.copy.mean.cv.withinlabs[lib.method.detail=="TruSeq"]; g1
+g2 <- g %+% equimolar.counts.copy.mean.cv.withinlabs[lib.method.detail!="4N_NEXTflex" & lib.method.detail=="4N_B"]; g2
+g3 <- g %+% equimolar.counts.copy.mean.cv.withinlabs[lib.method.detail=="NEBNext"]; g3
+this.outfile <- paste0(outdirs["supplemental_figures"], "/FIGS2_ViolinPlot_equimolar_bias_altCPM_withLegend_ALL.pdf")
+g.combn <- plot_grid(plotlist=list(g1, g2, g3), nrow = 3, ncol=1)
+save_plot(this.outfile, g.combn, ncol = 1, nrow = 3, base_width = 9.25, base_height = 3.25)
+
+
+
+equimolar.counts.copy.mean.cv.withinlabs.4N <- subset(equimolar.counts.copy.mean.cv.withinlabs, grepl("4N_[ABCD]", lib.method.detail))
+equimolar.counts.copy.mean.cv.withinlabs.4N[, lib.method.group:="4N"]
+equimolar.counts.copy.mean.cv.withinlabs.NEBSubset <- subset(equimolar.counts.copy.mean.cv.withinlabs, lab.libMethod%in%NEB.subset)
+equimolar.counts.copy.mean.cv.withinlabs.NEBSubset[, lib.method.group:="NEBNext_subset"]
+equimolar.counts.copy.mean.cv.withinlabs[, lib.method.group:=lib.method.detail]
+summary.quantiles <- c(0.02, 0.25, 0.50, 0.75, 0.98)
+equimolar.counts.copy.mean.cv.withinlabs.subgroups <- rbind(equimolar.counts.copy.mean.cv.withinlabs.4N, equimolar.counts.copy.mean.cv.withinlabs.NEBSubset, equimolar.counts.copy.mean.cv.withinlabs)
+
+this.outfile <- paste0(outdirs["supplemental_figures"], "/FIGS3_BoxPlot_intralab_percentCV_altCPMs.pdf") 
+ggplot(equimolar.counts.copy.mean.cv.withinlabs.subgroups[lib.method.group%in%c("TruSeq", "NEBNext_subset", "4N_B")], aes(x=cpm.measure.id, y=intralab.cv)) + 
+  geom_jitter(alpha=0.5, size=0.2, width=0.25) + 
+  geom_boxplot(alpha=0.5, outlier.color=NA) +
+  facet_wrap(~lib.method.group, ncol=1) + 
+  scale_x_discrete(labels=tolower(as.character(as.roman(1:11)))) + 
+  labs(x="Alternative CPM Calculations (see legend)", y="%CV Within Labs")
+#ggsave(this.outfile, width=9.25, height=10) 
+
+this.outfile <- paste0(outdirs["supplemental_figures"], "/FIGS3_BoxPlot_intralab_percentCV_altCPMs_withlegend.pdf")
+g <- ggplot(equimolar.counts.copy.mean.cv.withinlabs.subgroups[lib.method.group%in%c("TruSeq", "NEBNext_subset", "4N_B")],
+            aes(x = Lab,
+                pos=cpm.measure.id,
+                y = intralab.cv,
+                fill=cpm.measure.id))  +
+  #geom_violin(draw_quantiles = c(0.25, 0.5, 0.75), pos=position_dodge(width = 0.9)) +
+  geom_boxplot(outlier.size = 0.2, pos=position_dodge(width=0.9)) +
+  scale_y_continuous(breaks=seq(0,200,25), limits = c(0,200)) +
+  theme(
+    panel.grid.major = element_line(color=NA),
+    panel.border = element_rect(size=1, color="black"),
+    axis.ticks = element_line(color="black"),
+    # legend.position = "none"
+    legend.position = "top",
+    legend.direction = "horizontal",
+    legend.key.size=unit(1, "lines"),
+    legend.background = element_rect(fill=NA)
+  ) +
+  labs(
+    #title="EQUIMOLAR POOL:\nAVERAGE COUNTS-PER-MILLION",
+    x=NULL,
+    y="%CV Within Labs",
+    fill=NULL
+  ) + facet_wrap(~lib.method.detail, ncol=1); g %+% equimolar.counts.copy.mean.cv.withinlabs[lib.method.detail=="TruSeq"]
+ggsave(this.outfile, width = 8, height=4)
+g <- g + theme(legend.position = "none")
+
+g1 <- g %+% equimolar.counts.copy.mean.cv.withinlabs.subgroups[lib.method.group=="TruSeq"]; g1
+g2 <- g %+% equimolar.counts.copy.mean.cv.withinlabs.subgroups[lib.method.detail!="4N_NEXTflex" & lib.method.group=="4N_B"]; g2
+g3 <- g %+% equimolar.counts.copy.mean.cv.withinlabs.subgroups[lib.method.group=="NEBNext_subset"]; g3
+this.outfile <- paste0(outdirs["supplemental_figures"], "/FIGS3_BoxPlot_intralab_percentCV_altCPMs_ALL.pdf")
+g.combn <- plot_grid(plotlist=list(g1, g2, g3), nrow = 3, ncol=1)
+save_plot(this.outfile, g.combn, ncol = 1, nrow = 3, base_width = 9.25, base_height = 3.25)
+
+
+
+
+equimolar.counts.copy.mean.cv.withinlabs.subgroups[, (sub("^0.", "intralab.cv", summary.quantiles)):=lapply(summary.quantiles, USE.NAMES=FALSE, SIMPLIFY=FALSE, quantile, x=intralab.cv, na.rm=TRUE), by=.(lib.method.group, cpm.measure.id)]
+equimolar.counts.copy.mean.cv.withinlabs.subgroups[, (sub("^0.", "intralab.qcd", summary.quantiles)):=lapply(summary.quantiles, USE.NAMES=FALSE, SIMPLIFY=FALSE, quantile, x=intralab.qcd, na.rm=TRUE), by=.(lib.method.group, cpm.measure.id)]
+equimolar.counts.copy.mean.cv.withinlabs.subgroups <- subset(unique(equimolar.counts.copy.mean.cv.withinlabs.subgroups[lib.method.detail!="4N_NEXTflex"], by=c("lab.libMethod", "lib.method.group", "cpm.measure.id")), select=c("lib.method.group", "lab.libMethod","cpm.measure.id" ,"n", sub("^0.", "intralab.cv", summary.quantiles), sub("^0.", "intralab.qcd", summary.quantiles)))
+equimolar.counts.copy.mean.cv.withinlabs.subgroups[, n:=uniqueN(lab.libMethod), by=.(lib.method.group, cpm.measure.id)]  
+equimolar.counts.copy.mean.cv.withinlabs.subgroups.SUMMARY <- subset(unique(equimolar.counts.copy.mean.cv.withinlabs.subgroups, by=c("lib.method.group", "cpm.measure.id")), select=-lab.libMethod)
+
+
+#### More equimolar wrangling
 mean.lib.size.eq <- equimolar.counts.5p.only.SizeFilt[lab.libMethod!="4N_NEXTflex.Lab8", sum(count), by=lab.libMethod.pool.replicate][, mean(V1)] 
 prior.count <- 0.25 # Default prior count used by edgeR's cpm.DGElist function
 equimolar.counts.5p.only.SizeFilt[, `:=`(count.total.by.sample.filt.lengths=sum(count)), by=.(lab.libMethod.pool.replicate)]
@@ -1503,12 +1648,14 @@ names(cv.plot.labels) <- cv.plot.order
 selected.combin.full.inter.cv[, set.combin:=factor(set.combin, levels=cv.plot.order)]
 # SUPP FIG S15a: Equimolar CV combinations -----
 g <- ggplot(selected.combin.full.inter.cv, aes(x=set.combin, y=interlab.cv, fill=lib.method.detail)) + 
-    geom_boxplot(outlier.alpha = 0.5, size=0.5) + 
+    geom_boxplot(outlier.alpha = 0.5, outlier.size=0.2, size=0.5) + 
   coord_flip() +
   scale_y_continuous("Interlab %CV", limits=c(0,280), breaks=seq(0,300,25)) +
   scale_x_discrete(labels=cv.plot.labels) + labs(x=NULL) +
   scale_fill_manual(values=ann_colors$lib.method.detail) +
   theme(
+    axis.text = element_text(size=6),
+    axis.title = element_text(size=6),
     panel.grid.major = element_line(color = NA),
     panel.grid.minor = element_line(color = NA),
     panel.border = element_rect(color = "black"),
@@ -1519,18 +1666,22 @@ g1 <- g %+% selected.combin.full.inter.cv[lib.method.group=="TruSeq"]; g1
 g2 <- g %+% selected.combin.full.inter.cv[lib.method.group=="NEBNext_subset"]; g2
 g3 <- g %+% selected.combin.full.inter.cv[lib.method.detail=="4N_B"]; g3
 g23 <- plot_grid(plotlist = list(g2, g3), ncol = 1, align = "v", rel_heights = c(1, 1))
-g123 <- plot_grid(plotlist = list(g1, g23), ncol=2, align="h", rel_widths=c(1.25,1)); g123
+g123 <- plot_grid(plotlist = list(g1, g23), ncol=2, align="h", rel_widths=c(1.5,1)); g123
 this.outdir <- paste0(outdirs["supplemental_figures"], "/FIGS15A_Equimolar_CV_All3wayCombinations_Boxplot.pdf")
-save_plot(this.outdir, g123, base_width = 7.5, base_height=8.5)
+save_plot(this.outdir, g123, base_width = 7.5, base_height=6.5)
+
+
 
 # SUPP FIG S15b: Equimolar CV combinations -----
 g <- ggplot(selected.combin.full.inter.cv, aes(x=set.combin, y=interlab.qcd, fill=lib.method.detail)) + 
-  geom_boxplot(outlier.alpha = 0.5, size=0.5) + 
+  geom_boxplot(outlier.alpha = 0.5, outlier.size=0.2, size=0.5) + 
   coord_flip() +
   scale_y_continuous("Interlab QCD", limits=c(0,1), breaks=seq(0, 1, 0.1)) +
   scale_x_discrete(labels=cv.plot.labels) + labs(x=NULL) +
   scale_fill_manual(values=ann_colors$lib.method.detail) +
   theme(
+    axis.text = element_text(size=6),
+    axis.title = element_text(size=6),
     panel.grid.major = element_line(color = NA),
     panel.grid.minor = element_line(color = NA),
     panel.border = element_rect(color = "black"),
@@ -1541,9 +1692,9 @@ g1 <- g %+% selected.combin.full.inter.cv[lib.method.group=="TruSeq"]; g1
 g2 <- g %+% selected.combin.full.inter.cv[lib.method.group=="NEBNext_subset"]; g2
 g3 <- g %+% selected.combin.full.inter.cv[lib.method.detail=="4N_B"]; g3
 g23 <- plot_grid(plotlist = list(g2, g3), ncol = 1, align = "v", rel_heights = c(1, 1))
-g123 <- plot_grid(plotlist = list(g1, g23), ncol=2, align="h", rel_widths=c(1.25,1)); g123
+g123 <- plot_grid(plotlist = list(g1, g23), ncol=2, align="h", rel_widths=c(1.5,1)); g123
 this.outdir <- paste0(outdirs["supplemental_figures"], "/FIGS15B_Equimolar_QCD_All3wayCombinations_Boxplot.pdf")
-save_plot(this.outdir, g123, base_width = 7.5, base_height=8.5)
+save_plot(this.outdir, g123, base_width = 7.5, base_height=6.5)
 
 # SUP Table 4: Number of undetected sequences in the equimolar pool -----
 total.eq.seqs <- length(unique(FINAL.EQUIMOLAR.LONG$equimolar.seqID))
@@ -2051,15 +2202,14 @@ dge.ratio$samples <- cbind(dge.ratio$samples, sample.info.ratio)
 dge.ratio$samples$pool <- factor(dge.ratio$samples$pool, c("SynthA", "SynthB"))
 cpm.ratio <- cpm(dge.ratio, normalized.lib.sizes = FALSE)
 
-cor.matrix.all.ratio.square <- cor(cpm.ratio.rle, use="pair", method="spearman")
+cor.matrix.all.ratio.square <- cor(cpm.ratio, use="pair", method="spearman")
 cor.matrix.all.ratio <- data.table(cbind(melt(cor.matrix.all.ratio.square), melt(upper.tri(cor.matrix.all.ratio.square, diag=TRUE))))
 setnames(cor.matrix.all.ratio, c("lab.libMethod.replicate.A", "lab.libMethod.replicate.B", "rho", "row", "col", "upper.tri"))
 cor.matrix.all.ratio[, `:=`(id.A=ifelse(upper.tri==TRUE, as.character(lab.libMethod.replicate.A), as.character(lab.libMethod.replicate.B)), id.B=ifelse(upper.tri==TRUE, as.character(lab.libMethod.replicate.B), as.character(lab.libMethod.replicate.A)))]
 cor.matrix.all.ratio[, `:=`(lab.libMethod.replicate.A=id.A, lab.libMethod.replicate.B=id.B)]
 cor.matrix.all.ratio[, `:=`(id.A=NULL, id.B=NULL)]
-dge.ratio$samples$lib.detail.pool <- 
-  short.sample.info.ratio.A <- dge.ratio$samples[, c("Lab", "lab.libMethod.pool", "pool", "lib.method.detail", "lib.method.simple", "replicate")]
-short.sample.info.ratio.B <- dge.ratio$samples[, c("Lab", "lab.libMethod.pool", "pool", "lib.method.detail", "lib.method.simple", "replicate")]
+short.sample.info.ratio.A <- dge.ratio$samples[dge.ratio$samples$pool=="SynthA", c("Lab", "lab.libMethod.pool", "pool", "lib.method.detail", "lib.method.simple", "replicate")]
+short.sample.info.ratio.B <- dge.ratio$samples[dge.ratio$samples$pool=="SynthB", c("Lab", "lab.libMethod.pool", "pool", "lib.method.detail", "lib.method.simple", "replicate")]
 
 colnames(short.sample.info.ratio.A) <- paste0(colnames(short.sample.info.ratio.A), ".A")
 colnames(short.sample.info.ratio.B) <- paste0(colnames(short.sample.info.ratio.B), ".B")
@@ -2082,7 +2232,7 @@ cor.matrix.all.ratio.sample.info.unique <- unique(cor.matrix.all.ratio.sample.in
 cor.matrix.all.ratio.sample.info.unique[, comparison.detail.pool:=ifelse(pool.A==pool.B, paste(comparison.detail, pool.A, sep="."), paste0(comparison.detail, ".AvsB")), by=1:nrow(cor.matrix.all.ratio.sample.info.unique)]
 cor.matrix.all.ratio.sample.info.unique[, comparison.simple.pool:=ifelse(pool.A==pool.B, paste(comparison.simple, pool.A, sep="."), paste0(comparison.simple, ".AvsB")), by=1:nrow(cor.matrix.all.ratio.sample.info.unique)]
 
-n.miRs <- dim(cpm.ratio.rle)[1]
+n.miRs <- dim(cpm.ratio)[1]
 cor.matrix.all.ratio.sample.info.cor.summary.details <- cor.matrix.all.ratio.sample.info.unique[, { nr=length(unique(c(lab.libMethod.replicate.A, lab.libMethod.replicate.B))); FUNCTION.meanRhoFromCoefs(rho, ns=n.miRs, nr=nr) }, by=comparison.detail.pool]
 cor.matrix.all.ratio.sample.info.cor.summary.simple <- cor.matrix.all.ratio.sample.info.unique[, { nr=length(unique(c(lab.libMethod.replicate.A, lab.libMethod.replicate.B))); FUNCTION.meanRhoFromCoefs(rho, ns=n.miRs, nr=nr) }, by=comparison.simple.pool]
 setnames(cor.matrix.all.ratio.sample.info.cor.summary.details, "comparison.detail.pool", "comparison")
@@ -2098,7 +2248,6 @@ write.table(cor.matrix.all.ratio.sample.info.cor.summary.all, this.outfile, sep=
 # SUP FigS14 Intralab %CV Ratio -------------------------------
 INTRALAB.CV.RATIOMETRIC <- FINAL.RATIOMETRIC.LONG[, .(mean.cpm=mean(pseudo.cpm.filt.lengths), sd.cpm=sd(pseudo.cpm.filt.lengths), q1.cpm=quantile(pseudo.cpm.filt.lengths, 0.25), q3.cpm=quantile(pseudo.cpm.filt.lengths, 0.75)), by=.(lab.libMethod,  Lab, lib.method.detail, lib.method.simple, ratio.seqID, pool)]
 INTRALAB.CV.RATIOMETRIC[, `:=`(intralab.cv=100*sd.cpm/mean.cpm, intralab.qcd=((q3.cpm-q1.cpm)/2)/((q3.cpm+q1.cpm)/2))]
-
 this.outfile <- paste0(outdirs["supplemental_figures"], "/FIG_S14_RATIOMETRIC_CV_INTRALAB_Violin.pdf"); this.outfile
 ggplot(INTRALAB.CV.RATIOMETRIC,
        aes(x = lab.libMethod,
@@ -2155,17 +2304,41 @@ ggsave(this.outfile, width = 7.5, height=5.0)
 
 # Intralab CV Ratio Summary Table -------------------------------
 summary.quantiles <- c(0.02, 0.25, 0.50, 0.75, 0.98)
-INTRALAB.CV.RATIOMETRIC[lib.method.detail!="4N_NEXTflex", (sub("^0.", "intralab.cv", summary.quantiles)):=lapply(summary.quantiles, USE.NAMES=FALSE, SIMPLIFY=FALSE, quantile, x=intralab.cv), by=.(lib.method.detail, pool)]
-INTRALAB.CV.RATIOMETRIC[lib.method.detail!="4N_NEXTflex", (sub("^0.", "intralab.qcd", summary.quantiles)):=lapply(summary.quantiles, USE.NAMES=FALSE, SIMPLIFY=FALSE, quantile, x=intralab.qcd), by=.(lib.method.detail, pool)]
-INTRALAB.CV.RATIOMETRIC.SUMMARY <- INTRALAB.CV.RATIOMETRIC[lib.method.detail!="4N_NEXTflex", lapply(.SD, max), by=.(lib.method.detail, pool), .SDcols=c(sub("^0.", "intralab.cv", summary.quantiles), sub("^0.", "intralab.qcd", summary.quantiles))]
-this.outfile <- paste0(outdirs["tables"], "/Ratiometric_intralab_CV_QCD_summary.txt")
+INTRALAB.CV.RATIOMETRIC[lib.method.detail!="4N_NEXTflex" & (lib.method.detail!="NEBNext" | lab.libMethod%in%NEB.subset), (sub("^0.", "intralab.cv", summary.quantiles)):=lapply(summary.quantiles, USE.NAMES=FALSE, SIMPLIFY=FALSE, quantile, x=intralab.cv), by=.(lib.method.detail, pool)]
+INTRALAB.CV.RATIOMETRIC[lib.method.detail!="4N_NEXTflex" & (lib.method.detail!="NEBNext" | lab.libMethod%in%NEB.subset), (sub("^0.", "intralab.qcd", summary.quantiles)):=lapply(summary.quantiles, USE.NAMES=FALSE, SIMPLIFY=FALSE, quantile, x=intralab.qcd), by=.(lib.method.detail, pool)]
+INTRALAB.CV.RATIOMETRIC[lib.method.detail!="4N_NEXTflex" & (lib.method.detail!="NEBNext" | lab.libMethod%in%NEB.subset), n.libs:=uniqueN(lab.libMethod), by=.(lib.method.detail, pool)]
+INTRALAB.CV.RATIOMETRIC.SUMMARY.tmp <- INTRALAB.CV.RATIOMETRIC[lib.method.detail!="4N_NEXTflex"& (lib.method.detail!="NEBNext" | lab.libMethod%in%NEB.subset) , lapply(.SD, max), by=.(lib.method.detail, pool), .SDcols=c(sub("^0.", "intralab.cv", summary.quantiles), sub("^0.", "intralab.qcd", summary.quantiles), "n.libs")]
+
+INTRALAB.CV.RATIOMETRIC.inhouse4N <- INTRALAB.CV.RATIOMETRIC[grepl("4N_[A-D]", lib.method.detail)]
+INTRALAB.CV.RATIOMETRIC.inhouse4N[, lib.method.detail:="4N_aggregate"]
+INTRALAB.CV.RATIOMETRIC.inhouse4N[, (sub("^0.", "intralab.cv", summary.quantiles)):=lapply(summary.quantiles, USE.NAMES=FALSE, SIMPLIFY=FALSE, quantile, x=intralab.cv), by=.(lib.method.detail, pool)]
+INTRALAB.CV.RATIOMETRIC.inhouse4N[lib.method.detail!="4N_NEXTflex" & (lib.method.detail!="NEBNext" | lab.libMethod%in%NEB.subset), (sub("^0.", "intralab.qcd", summary.quantiles)):=lapply(summary.quantiles, USE.NAMES=FALSE, SIMPLIFY=FALSE, quantile, x=intralab.qcd), by=.(lib.method.detail, pool)]
+INTRALAB.CV.RATIOMETRIC.inhouse4N[, n.libs:=.N, by=.(lib.method.detail, lab.libMethod, pool, ratio.seqID)]
+INTRALAB.CV.RATIOMETRIC.inhouse4N.summary <- INTRALAB.CV.RATIOMETRIC.inhouse4N[, lapply(.SD, max), by=.(lib.method.detail, pool), .SDcols=c(sub("^0.", "intralab.cv", summary.quantiles), sub("^0.", "intralab.qcd", summary.quantiles), "n.libs")]
+
+INTRALAB.CV.RATIOMETRIC.SUMMARY <- rbind(INTRALAB.CV.RATIOMETRIC.SUMMARY.tmp, INTRALAB.CV.RATIOMETRIC.inhouse4N.summary)
+
 write.table(INTRALAB.CV.RATIOMETRIC.SUMMARY, this.outfile, row.names = FALSE, col.names=TRUE, sep="\t", quote=FALSE)
 
 # INTERLAB CV/QCD Ratiometric Summary Table -------------------------------
 INTRALAB.CV.RATIOMETRIC.subgroups <- subset(INTRALAB.CV.RATIOMETRIC, lib.method.detail!="NEBNext" | lab.libMethod%in%NEB.subset)
 INTRALAB.CV.RATIOMETRIC.subgroups[, n:=.N, by=.(pool, lib.method.detail, ratio.seqID)]
 
-MEAN.CV.ACROSS.LABS.RATIO.subgroups <- INTRALAB.CV.RATIOMETRIC.subgroups[n>2, .(mean.cpm=mean(mean.cpm), sd.cpm=sd(mean.cpm), q1.cpm=quantile(mean.cpm, 0.25), q3.cpm=quantile(mean.cpm, 0.75), n=.N), by=.(pool, lib.method.detail, ratio.seqID)]
+MEAN.CV.ACROSS.LABS.RATIO.subgroups.tmp <- INTRALAB.CV.RATIOMETRIC.subgroups[n>2, 
+                                                                         .(mean.cpm=mean(mean.cpm),
+                                                                           sd.cpm=sd(mean.cpm),
+                                                                           q1.cpm=quantile(mean.cpm, 0.25),
+                                                                           q3.cpm=quantile(mean.cpm, 0.75),
+                                                                           n=.N), by=.(pool, lib.method.detail, ratio.seqID)]
+MEAN.CV.ACROSS.LABS.RATIO.4NAgg <- INTRALAB.CV.RATIOMETRIC.subgroups[lib.method.simple=="4N", 
+                                                                         .(mean.cpm=mean(mean.cpm),
+                                                                           lib.method.detail="4N_aggregate",
+                                                                           sd.cpm=sd(mean.cpm),
+                                                                           q1.cpm=quantile(mean.cpm, 0.25),
+                                                                           q3.cpm=quantile(mean.cpm, 0.75),
+                                                                           n=.N), by=.(pool, ratio.seqID)]
+
+MEAN.CV.ACROSS.LABS.RATIO.subgroups <- rbind(MEAN.CV.ACROSS.LABS.RATIO.subgroups.tmp, MEAN.CV.ACROSS.LABS.RATIO.4NAgg)
 MEAN.CV.ACROSS.LABS.RATIO.subgroups[, `:=`(interlab.cv=100*sd.cpm/mean.cpm, interlab.qcd=((q3.cpm-q1.cpm)/2)/((q3.cpm+q1.cpm)/2))]
 MEAN.CV.ACROSS.LABS.RATIO.subgroups[, (sub("^0.", "interlab.cv", summary.quantiles)):=lapply(summary.quantiles, USE.NAMES=FALSE, SIMPLIFY=FALSE, quantile, x=interlab.cv), by=.(pool, lib.method.detail)]
 MEAN.CV.ACROSS.LABS.RATIO.subgroups[, (sub("^0.", "interlab.qcd", summary.quantiles)):=lapply(summary.quantiles, USE.NAMES=FALSE, SIMPLIFY=FALSE, quantile, x=interlab.qcd), by=.(pool, lib.method.detail)]
@@ -2205,6 +2378,19 @@ paste(
                                        ")")], 
   collapse="; ")
 # 4N_B SynthA: 0.15 (0.04, 0.41; n=4); 4N_B SynthB: 0.16 (0.04, 0.45; n=4); NEBNext SynthA: 0.19 (0.06, 0.43; n=4); NEBNext SynthB: 0.22 (0.07, 0.51; n=4); TruSeq SynthA: 0.17 (0.05, 0.43; n=8); TruSeq SynthB: 0.18 (0.05, 0.43; n=8)
+
+# Ratiometric within-lab ---
+INTRALAB.CV.RATIOMETRIC.subgroups.multLibs <- INTRALAB.CV.RATIOMETRIC.subgroups[n>2]
+INTRALAB.CV.RATIOMETRIC.subgroups.multLibs[, lib.method.group:=lib.method.detail]
+INTRALAB.CV.RATIOMETRIC.subgroups.inHouse4N <- INTRALAB.CV.RATIOMETRIC.subgroups[grepl("4N_[A-D]", lib.method.detail)]
+INTRALAB.CV.RATIOMETRIC.subgroups.inHouse4N[, lib.method.group:="4N_aggregate"]
+INTRALAB.CV.RATIOMETRIC.subgroups.combn <-  rbind(INTRALAB.CV.RATIOMETRIC.subgroups.multLibs, INTRALAB.CV.RATIOMETRIC.subgroups.inHouse4N)
+INTRALAB.CV.RATIOMETRIC.subgroups.combn[, (sub("^0.", "intralab.cv", summary.quantiles)):=lapply(summary.quantiles, USE.NAMES=FALSE, SIMPLIFY=FALSE, quantile, x=intralab.cv), by=.(lib.method.group, pool)]
+INTRALAB.CV.RATIOMETRIC.subgroups.combn[, (sub("^0.", "intralab.qcd", summary.quantiles)):=lapply(summary.quantiles, USE.NAMES=FALSE, SIMPLIFY=FALSE, quantile, x=intralab.qcd), by=.(lib.method.group, pool)]
+INTRALAB.CV.RATIOMETRIC.subgroups.combn.SUMMARY.tmp <- subset(unique(INTRALAB.CV.RATIOMETRIC.subgroups.combn[lib.method.detail!="4N_NEXTflex"], by=c("lab.libMethod", "lib.method.group", "pool")), select=c("lib.method.group", "lab.libMethod", "pool", "n", sub("^0.", "intralab.cv", summary.quantiles), sub("^0.", "intralab.qcd", summary.quantiles)))
+INTRALAB.CV.RATIOMETRIC.subgroups.combn.SUMMARY.tmp[, n:=sum(n), by=.(lib.method.group, pool)]  
+INTRALAB.CV.RATIOMETRIC.subgroups.combn.SUMMARY <- subset(unique(INTRALAB.CV.RATIOMETRIC.subgroups.combn.SUMMARY.tmp, by=c("lib.method.group", "pool")), select=-lab.libMethod)
+
 
 
 # SUMMARY CORRELATION COEFFICIENT TABLES FOR RATIOMETRIC POOL -- USING AVERAGE COUNTS AND FOLD CHANGES --------------------------------------------------------------
@@ -2246,15 +2432,15 @@ reorder.paste.fun <- function(query.vec, lookup.vec){
 cor.matrix.all.ratio.sample.info[, comparison.detail:=apply(.SD, 1, reorder.paste.fun, lookup.vec=lib.detail.levels.with.nextFlex), .SDcols=c("lib.method.detail.A", "lib.method.detail.B")]
 cor.matrix.all.ratio.sample.info[, comparison.simple:=apply(.SD, 1, reorder.paste.fun, lookup.vec=lib.simple.levels), .SDcols=c("lib.method.simple.A", "lib.method.simple.B")]
 
-cor.matrix.all.ratio.sample.info[, comparison.detail:=apply(.SD, 1, paste, collapse=".VS."), .SDcols=c("lib.method.detail.A", "lib.method.detail.B")]
-cor.matrix.all.ratio.sample.info[, comparison.simple:=apply(.SD, 1, paste, collapse=".VS."), .SDcols=c("lib.method.simple.A", "lib.method.simple.B")]
+#cor.matrix.all.ratio.sample.info[, comparison.detail:=apply(.SD, 1, paste, collapse=".VS."), .SDcols=c("lib.method.detail.A", "lib.method.detail.B")]
+#cor.matrix.all.ratio.sample.info[, comparison.simple:=apply(.SD, 1, paste, collapse=".VS."), .SDcols=c("lib.method.simple.A", "lib.method.simple.B")]
 
 setkeyv(cor.matrix.all.ratio.sample.info, c("measure.lab.libMethod.replicate.B", "measure.lab.libMethod.replicate.A"))
 cor.matrix.all.ratio.sample.info.unique.selfCompare <- subset(unique(cor.matrix.all.ratio.sample.info), measure.A==measure.B)
 cor.matrix.all.ratio.sample.info.unique.selfCompare[, comparison.detail.measure:=paste(comparison.detail, measure.A, sep="."), by=1:nrow(cor.matrix.all.ratio.sample.info.unique.selfCompare)]
 cor.matrix.all.ratio.sample.info.unique.selfCompare[, comparison.simple.measure:=paste(comparison.simple, measure.A, sep="."), by=1:nrow(cor.matrix.all.ratio.sample.info.unique.selfCompare)]
 
-n.miRs <- dim(cpm.ratio.rle)[1]
+n.miRs <- dim(MEAN.CPM.RATIO.FOR.CPM.FOR.RATIO.cast.lib.and.measure)[1]
 cor.matrix.all.ratio.sample.info.cor.summary.details <- cor.matrix.all.ratio.sample.info.unique.selfCompare[, { nr=length(unique(c(lab.libMethod.replicate.A, lab.libMethod.replicate.B))); FUNCTION.meanRhoFromCoefs(rho, ns=n.miRs, nr=nr) }, by=comparison.detail.measure]
 cor.matrix.all.ratio.sample.info.cor.summary.simple <- cor.matrix.all.ratio.sample.info.unique.selfCompare[, { nr=length(unique(c(lab.libMethod.replicate.A, lab.libMethod.replicate.B))); FUNCTION.meanRhoFromCoefs(rho, ns=n.miRs, nr=nr) }, by=comparison.simple.measure]
 setnames(cor.matrix.all.ratio.sample.info.cor.summary.details, "comparison.detail.measure", "comparison")
