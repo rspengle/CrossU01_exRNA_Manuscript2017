@@ -159,7 +159,7 @@ FUNCTION.meanRhoFromCoefs <- function(r, ns, nr){
   r02 <- quantile(r, 0.02)
   r98 <- quantile(r, 0.98)
   p.value <- 2 * (1 - pnorm(abs(u)))
-  rval <- list(irr.name = "Rho", nlibs= nr, value = coeff, stat.name = "z", statistic = u, p.value = p.value, simple.mean.r=mean.r, r02=r02, r98=r98)
+  rval <- list(irr.name = "Rho", nlibs=nr, value = coeff, stat.name = "z", statistic = u, p.value = p.value, simple.mean.r=mean.r, r02=r02, r98=r98, n.comparisons=length(r))
 }
 
 # Import and wrangle study data -----
@@ -184,11 +184,11 @@ CROSS.U01.SYNTH.METADATA <- dcast.data.table(subset(CROSS.U01.METADATA.ALL, pool
 setkey(CROSS.U01.SYNTH.METADATA, "CalibratorCounts")
 
 counts.dt <- rbindlist(sapply(CROSS.U01.SYNTH.METADATA[file.exists(CalibratorCounts)]$CalibratorCounts, USE.NAMES=FALSE, simplify=FALSE, FUN=function(x){
-  dt <- fread(x); # the FileName.Loc variable is passed to sapply as the variable "x". Read this in as a data.table
+  dt <- fread(x, header=FALSE, sep=" "); # the FileName.Loc variable is passed to sapply as the variable "x". Read this in as a data.table
   setnames(dt, 1:2, c("count", "new.seqID")) # Column names will be V1 and V2, so set them appropriately
   dt$CalibratorCounts <- x # add the FileName.Loc value as a new variable in the count data table. Will be used as a key
   setkey(dt, "CalibratorCounts") # Set the key
-  dt <- merge(CROSS.U01.SYNTH.METADATA, dt) # Use the key to merge with the CROSS_U01 table, which contains the relevant sample info
+  dt <- merge(CROSS.U01.SYNTH.METADATA, dt, "CalibratorCounts") # Use the key to merge with the CROSS_U01 table, which contains the relevant sample info
   setkey(dt, new.seqID)
   # Gets the parsed sequence information from a new table. If all names match the corrected names (new.seqID) use that, otherwise use the old ones
   setkey(sequence.annot, new.seqID)   
@@ -253,9 +253,9 @@ counts.dt.uncollapsed <- counts.dt
 counts.dt <- counts.dt.collapse # this is the one to move forward with
 
 # Set custom plot theme ------------
-my_theme_bw <- theme_bw(base_size=8)
+my_theme_bw <- theme_bw(base_size=6)
 theme_set(my_theme_bw)
-my_theme_bw <- theme_update(text=element_text(color="black"), axis.text=element_text(color="black", size=rel(1.0)))
+my_theme_bw <- theme_update(text=element_text(color="black"), axis.text=element_text(color="black", size=rel(1.0)), axis.title=element_text(size=7, color="black"), strip.text=element_text(size=7, color="black"))
 
 # Set variable ordering -----------------------------------
 pools <- c("SynthEQ", "Synth[AB]", "PlasmaPool", "*")
@@ -547,7 +547,7 @@ g <- ggplot(equimolar.counts.copy.mean.cv.withinlabs[lib.method.detail!="4N_NEXT
     breaks = scales::trans_breaks("log10", n = 9,  function(x) 10^x),
     labels = scales::trans_format("log10", scales::math_format(10^.x))
   ) + 
-  annotation_logticks(sides = "l", size = 1, color="black") +
+  annotation_logticks(sides = "l", size = 0.5, color="black", short = unit(0.1*(2/3), "cm"), mid = unit(0.2*(2/3), "cm"), long = unit(0.3*(2/3), "cm")) +
   theme(
     panel.grid.major = element_line(color=NA),
     panel.border = element_rect(size=1, color="black"),
@@ -556,6 +556,8 @@ g <- ggplot(equimolar.counts.copy.mean.cv.withinlabs[lib.method.detail!="4N_NEXT
     legend.position = "top",
     legend.direction = "horizontal",
     legend.key.size=unit(1, "lines"),
+    strip.text = element_text(size=6),
+    axis.title = element_text(size=6),
     legend.background = element_rect(fill=NA)
   ) +
   labs(
@@ -567,12 +569,12 @@ g <- ggplot(equimolar.counts.copy.mean.cv.withinlabs[lib.method.detail!="4N_NEXT
 ggsave(this.outfile, width = 8, height=4)
 g <- g + theme(legend.position = "none")
 
-g1 <- g %+% equimolar.counts.copy.mean.cv.withinlabs[lib.method.detail=="TruSeq"]; g1
-g2 <- g %+% equimolar.counts.copy.mean.cv.withinlabs[lib.method.detail!="4N_NEXTflex" & lib.method.detail=="4N_B"]; g2
-g3 <- g %+% equimolar.counts.copy.mean.cv.withinlabs[lib.method.detail=="NEBNext"]; g3
+g1 <- g %+% equimolar.counts.copy.mean.cv.withinlabs[lib.method.detail=="TruSeq"]#; g1
+g2 <- g %+% equimolar.counts.copy.mean.cv.withinlabs[lib.method.detail!="4N_NEXTflex" & lib.method.detail=="4N_B"]#; g2
+g3 <- g %+% equimolar.counts.copy.mean.cv.withinlabs[lib.method.detail=="NEBNext"]#; g3
 this.outfile <- paste0(outdirs["supplemental_figures"], "/FIGS2_ViolinPlot_equimolar_bias_altCPM_withLegend_ALL.pdf")
 g.combn <- plot_grid(plotlist=list(g1, g2, g3), nrow = 3, ncol=1)
-save_plot(this.outfile, g.combn, ncol = 1, nrow = 3, base_width = 9.25, base_height = 3.25)
+save_plot(this.outfile, g.combn, base_width = 7, base_height = 4.6)
 
 
 
@@ -803,6 +805,20 @@ equimolar.counts.all.AVERAGE.REPS[, length.bins:=cut(seq.len, breaks=c(0, 15, 25
 # Before filtering
 # UNAfold values
 unafold.seqinfo.dt <- fread("data/crossUO1_sythRNA_UNAfold_vals.txt", na.strings = "NaN")
+lab.lib.levels.forExplFactors <- equimolar.counts.all.AVERAGE.REPS[, levels(lab.libMethod)]
+lab.lib.level.forExplFactors.order <- lab.lib.levels.forExplFactors[c(grep("TruSeq", lab.lib.levels.forExplFactors)[1:2],
+                                                                      grep("CleanTag", lab.lib.levels.forExplFactors),
+                                                                      grep("NEBNext", lab.lib.levels.forExplFactors)[1:3],
+                                                                      grep("TruSeq", lab.lib.levels.forExplFactors)[3:4],
+                                                                      grep("4N_A", lab.lib.levels.forExplFactors),
+                                                                      grep("NEBNext", lab.lib.levels.forExplFactors)[4:6],
+                                                                      grep("TruSeq", lab.lib.levels.forExplFactors)[5:6],
+                                                                      grep("4N_B", lab.lib.levels.forExplFactors),
+                                                                      grep("TruSeq", lab.lib.levels.forExplFactors)[7:8],
+                                                                      grep("4N_[CD]", lab.lib.levels.forExplFactors),
+                                                                      grep("(4N_Xu|4N_NEXTflex)", lab.lib.levels.forExplFactors))]
+equimolar.counts.all.AVERAGE.REPS[, lab.libMethod.f:=factor(lab.libMethod, levels=lab.lib.level.forExplFactors.order)]
+
 setkey(unafold.seqinfo.dt, new.seqID)
 setkey(equimolar.counts.all.AVERAGE.REPS, new.seqID)
 equimolar.counts.all.AVERAGE.REPS[unafold.seqinfo.dt, `:=`(dG=dG, dH=dH, dS=dS, Tm=Tm)]
@@ -815,7 +831,7 @@ equimolar.counts.all.AVERAGE.REPS[, n.reps.total:=max(n.present), by=lab.libMeth
 this.outfile <- paste0(outdirs["supplemental_figures"], "/ModLengthFilters_VS_CountBias.pdf")
 g <- ggplot(equimolar.counts.all.AVERAGE.REPS[modification!="5pPhos+3p2OMe AND 5pPhos" & lab.libMethod!="4N_NEXTflex.Lab8"], aes(x=filt.group, y=mean.pseudo.cpm)) + 
   #geom_violin(position = "dodge", draw_quantiles = c(0.25, 0.5, 0.75)) +
-  geom_quasirandom(aes(color=lib.method.simple), alpha=0.6, size=0.25) +
+  geom_quasirandom(aes(color=lib.method.simple), alpha=0.5, size=0.2) +
   geom_boxplot(outlier.colour = NA, fill=NA) +
   scale_y_log10(
   limits=c(10^-2,10^5),
@@ -824,11 +840,14 @@ g <- ggplot(equimolar.counts.all.AVERAGE.REPS[modification!="5pPhos+3p2OMe AND 5
 ) + labs(x=NULL, y="CPM") +
    theme(
     axis.text.x=element_text(angle=50, hjust=1),
+    axis.title = element_text(size=6),
+    strip.text = element_text(size=6),
     panel.grid.major = element_blank(),
-    panel.border = element_rect(size=1, color="black"),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(size=0.75, color="black"),
     axis.ticks = element_line(color="black"),
     legend.position = "none") + facet_wrap(~lab.libMethod, ncol=4); g 
-ggsave(this.outfile, g, width = 7.75, height=10)
+ggsave(this.outfile, g, width = 7.5, height=5.0)
 
 equimolar.counts.all.AVERAGE.REPS.f <- subset(equimolar.counts.all.AVERAGE.REPS[modification!="5pPhos+3p2OMe AND 5pPhos" & lab.libMethod!="4N_NEXTflex.Lab8" & dH!=Inf &  included.in.analysis == "INCLUDED"])
 equimolar.counts.all.AVERAGE.REPS.f[, `:=`(dG.f=cut(dG, breaks=c(quantile(dG, probs=seq(0, 1, by=0.1))),  include.lowest = TRUE),
@@ -839,7 +858,7 @@ equimolar.counts.all.AVERAGE.REPS.f[, `:=`(dG.f=cut(dG, breaks=c(quantile(dG, pr
 this.outfile <- paste0(outdirs["supplemental_figures"], "/FIGS9_UNAfold_dG_deciles_VS_CountBias.pdf")
 g <- ggplot(equimolar.counts.all.AVERAGE.REPS.f, aes(x=dG.f, fill=lib.method.simple, y=mean.pseudo.cpm)) + 
   #geom_violin(position = "dodge", draw_quantiles = c(0.25, 0.5, 0.75)) +
-  geom_boxplot(varwidth = TRUE) +
+  geom_boxplot(outlier.size=0.2) +
   #geom_quasirandom(aes(color=lib.method.simple), alpha=0.6, size=0.25) +
   #geom_point(alpha=0.5) +
   scale_y_log10(
@@ -849,16 +868,18 @@ g <- ggplot(equimolar.counts.all.AVERAGE.REPS.f, aes(x=dG.f, fill=lib.method.sim
   ) + labs(y="CPM", title="dG", x="dG") +
   theme(
     axis.text.x=element_text(angle=50, hjust=1),
+    strip.text=element_text(size=6),
     panel.grid.major = element_blank(),
-    panel.border = element_rect(size=1, color="black"),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(color="black"),
     axis.ticks = element_line(color="black"),
-    legend.position = "none") + facet_wrap(~lab.libMethod, ncol=4); g 
-ggsave(this.outfile, g,  width = 7.75, height=9)
+    legend.position = "none") + facet_wrap(~lab.libMethod.f, ncol=6); g 
+ggsave(this.outfile, g,  width = 7.5, height=5)
 # SUP Figure S11 UNAfold dG----
 this.outfile <- paste0(outdirs["supplemental_figures"], "/FIG_S11_UNAfold_dS_deciles_VS_CountBias.pdf")
 g <- ggplot(equimolar.counts.all.AVERAGE.REPS.f, aes(x=dS.f, fill=lib.method.simple, y=mean.pseudo.cpm)) + 
   #geom_violin(position = "dodge", draw_quantiles = c(0.25, 0.5, 0.75)) +
-  geom_boxplot(varwidth = TRUE) +
+  geom_boxplot(outlier.size=0.2) +
   #geom_quasirandom(aes(color=lib.method.simple), alpha=0.6, size=0.25) +
   #geom_point(alpha=0.5) +
   scale_y_log10(
@@ -868,16 +889,18 @@ g <- ggplot(equimolar.counts.all.AVERAGE.REPS.f, aes(x=dS.f, fill=lib.method.sim
   ) + labs(y="CPM", title="dS", x="dS") +
   theme(
     axis.text.x=element_text(angle=50, hjust=1),
+    strip.text=element_text(size=6),
     panel.grid.major = element_blank(),
-    panel.border = element_rect(size=1, color="black"),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(color="black"),
     axis.ticks = element_line(color="black"),
-    legend.position = "none") + facet_wrap(~lab.libMethod, ncol=4); g 
-ggsave(this.outfile, g,  width = 7.75, height=9)
+    legend.position = "none") + facet_wrap(~lab.libMethod.f, ncol=6); g 
+ggsave(this.outfile, g,  width = 7.5, height=5)
 # SUP Figure S10 UNAfold dG----
 this.outfile <- paste0(outdirs["supplemental_figures"], "/FIGS10_UNAfold_dH_deciles_VS_CountBias.pdf")
 g <- ggplot(equimolar.counts.all.AVERAGE.REPS.f, aes(x=dH.f, fill=lib.method.simple, y=mean.pseudo.cpm)) + 
   #geom_violin(position = "dodge", draw_quantiles = c(0.25, 0.5, 0.75)) +
-  geom_boxplot(varwidth = TRUE) +
+  geom_boxplot(outlier.size=0.2) +
   #geom_quasirandom(aes(color=lib.method.simple), alpha=0.6, size=0.25) +
   #geom_point(alpha=0.5) +
   scale_y_log10(
@@ -887,16 +910,19 @@ g <- ggplot(equimolar.counts.all.AVERAGE.REPS.f, aes(x=dH.f, fill=lib.method.sim
   ) + labs(y="CPM", title="dH", x="dH") +
   theme(
     axis.text.x=element_text(angle=50, hjust=1),
+    strip.text=element_text(size=6),
     panel.grid.major = element_blank(),
-    panel.border = element_rect(size=1, color="black"),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(color="black"),
     axis.ticks = element_line(color="black"),
-    legend.position = "none") + facet_wrap(~lab.libMethod, ncol=4); g 
-ggsave(this.outfile, g,  width = 7.75, height=9)
+    legend.position = "none") + facet_wrap(~lab.libMethod.f, ncol=6); g 
+ggsave(this.outfile, g,  width = 7.5, height=5)
+
 # SUP Figure S12 UNAfold Tm----
 this.outfile <- paste0(outdirs["supplemental_figures"], "/FIGS12_UNAfold_Tm_deciles_VS_CountBias.pdf")
 g <- ggplot(equimolar.counts.all.AVERAGE.REPS.f, aes(x=Tm.f, fill=lib.method.simple, y=mean.pseudo.cpm)) + 
   #geom_violin(position = "dodge", draw_quantiles = c(0.25, 0.5, 0.75)) +
-  geom_boxplot(varwidth = TRUE) +
+  geom_boxplot(outlier.size=0.2) +
   #geom_quasirandom(aes(color=lib.method.simple), alpha=0.6, size=0.25) +
   #geom_point(alpha=0.5) +
   scale_y_log10(
@@ -906,11 +932,13 @@ g <- ggplot(equimolar.counts.all.AVERAGE.REPS.f, aes(x=Tm.f, fill=lib.method.sim
   ) + labs(y="CPM", title="Tm (C)", x="Tm (C)") +
   theme(
     axis.text.x=element_text(angle=50, hjust=1),
+    strip.text=element_text(size=6),
     panel.grid.major = element_blank(),
-    panel.border = element_rect(size=1, color="black"),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(color="black"),
     axis.ticks = element_line(color="black"),
-    legend.position = "none") + facet_wrap(~lab.libMethod, ncol=4); g 
-ggsave(this.outfile, g,  width = 7.75, height=9)
+    legend.position = "none") + facet_wrap(~lab.libMethod.f, ncol=6); g 
+ggsave(this.outfile, g,  width = 7.5, height=5)
 
 equimolar.counts.all.AVERAGE.REPS.filt <- subset(equimolar.counts.all.AVERAGE.REPS, included.in.analysis=="INCLUDED" & lab.libMethod!="4N_NEXTflex.Lab8")
 # FIGS4 First NT Bias ----
@@ -959,25 +987,26 @@ save_plot(this.outfile, g12, ncol = 1, nrow = 2, base_width = 7.75)
 # FIGS5 5' and 3' End NT interaction Bias ----
 this.outfile <- paste0(outdirs["supplemental_figures"], "/FIGS5_ENDNT_Bias_interaction_VS_CountBias.pdf")
 gend <- ggplot(equimolar.counts.all.AVERAGE.REPS.filt, aes(x=first.nt, fill=lib.method.simple, alpha=last.nt, pos=last.nt, y=mean.pseudo.cpm)) + 
-  geom_boxplot(position = position_dodge(width = 0.8), width=0.6, size=0.5, outlier.size = 0.25) +
+  geom_boxplot(position = position_dodge(width = 0.8), outlier.alpha=1, width=0.6, size=0.5, outlier.size = 0.25) +
   scale_y_log10(
     #limits=c(10^-4,10^5),
     breaks = scales::trans_breaks("log10", n = 6,  function(x) 10^x),
     labels = scales::trans_format("log10", scales::math_format(10^.x))
   ) + labs(x="5P nt", y="CPM", fill="3P nt") +
   theme(
-    strip.text = element_text(color="black", size = 8),
-    axis.text.x=element_text(color="black", size = 8),
+    strip.text = element_text(color="black", size = 6),
+    axis.text.x=element_text(color="black", size = 7),
     panel.grid.major = element_blank(),
     panel.grid.minor = element_blank(),
-    panel.border = element_rect(size=1, color="black"),
+    panel.border = element_rect(color="black"),
     axis.ticks = element_line(color="black"),
-    legend.position = "top",
+    panel.spacing = unit(0, "lines"),
+    legend.position = "none",
     legend.direction = "horizontal",
     legend.key.size=unit(1, "lines"),
     legend.background = element_rect(fill=NA)
-  ) + facet_wrap(~lab.libMethod, ncol=4); gend 
-ggsave(this.outfile, gend, width = 7.75, height=9)
+  ) + facet_wrap(~lab.libMethod.f, ncol=6); gend 
+ggsave(this.outfile, gend, width = 6.4, height=5)
 # Text for legend with "n's"
 paste0("5'nt / 3'nt = n sequences: ", paste(equimolar.counts.all.AVERAGE.REPS[, uniqueN(sequence), by=.(first.nt, last.nt)][, paste0(first.nt, "/", last.nt, " = ", V1 )], collapse=", "))
 # "5'nt / 3'nt = n sequences: T/C = 60, T/A = 115, A/T = 150, G/G = 34, G/C = 42, T/G = 109, A/G = 61, A/A = 65, C/G = 54, G/A = 46, C/A = 38, G/T = 46, A/C = 80, C/T = 63, C/C = 37, T/T = 148"
@@ -991,8 +1020,8 @@ save_plot(filename = this.outfile, plot=g)
 
 
 # FIGS6a First 5' 4 NT Bias ----
-this.outfile <- paste0(outdirs["supplemental_figures"], "/FIGS6b_4NTBias5p_VS_CountBias.pdf")
-gend <- ggplot(equimolar.counts.all.AVERAGE.REPS.filt, aes(x=factor(first.4nt.percGC*100), fill=lib.method.simple, y=mean.pseudo.cpm)) + 
+#this.outfile <- paste0(outdirs["supplemental_figures"], "/FIGS6b_4NTBias5p_VS_CountBias.pdf")
+gend5 <- ggplot(equimolar.counts.all.AVERAGE.REPS.filt, aes(x=factor(first.4nt.percGC*100), fill=lib.method.simple, y=mean.pseudo.cpm)) + 
   geom_boxplot(position = "dodge", size=0.5, outlier.size = 0.25) +
   scale_y_log10(
     limits=c(10^-2,10^5),
@@ -1000,23 +1029,27 @@ gend <- ggplot(equimolar.counts.all.AVERAGE.REPS.filt, aes(x=factor(first.4nt.pe
     labels = scales::trans_format("log10", scales::math_format(10^.x))
   ) + labs(x="5'P nt 1-4 %GC", y="CPM", title="%GC: 5'nt 1-4") +
    theme(
-    axis.text.x=element_text(color="black"),
+    axis.text.x=element_text(color="black", hjust=1, angle=50),
+    strip.text=element_text(size=6),
+    axis.title=element_text(size=6),
     panel.grid.major = element_line(color=NA),
-    panel.border = element_rect(size=1, color="black"),
+    panel.grid.minor = element_line(color=NA),
+    panel.spacing = unit(0, "lines"),
+    panel.border = element_rect(size=0.5, color="black"),
     axis.ticks = element_line(color="black"),
     legend.position = "none"
     #legend.direction = "horizontal",
     #legend.key.size=unit(1, "lines"),
     #legend.background = element_rect(fill=NA)
-  ) + facet_wrap(~lab.libMethod, ncol=4); gend
-ggsave(this.outfile, gend, width = 7.5, height=9)
+  ) + facet_wrap(~lab.libMethod, ncol=4); gend5
+#ggsave(this.outfile, gend, width = 7.5, height=9)
 # IN-TEXT FigS6a Legend text # Sequences ----
 paste0("%GC = n sequences: ", paste(equimolar.counts.all.AVERAGE.REPS.filt[order(first.4nt.percGC), uniqueN(sequence), by=first.4nt.percGC][, paste0(factor(first.4nt.percGC*100), "% = ", V1 )], collapse=", "))
 # %GC = n sequences: 0% = 80, 25% = 339, 50% = 381, 75% = 164, 100% = 13
 
 # FIGS6b Last 3' 4 NT Bias ----
-this.outfile <- paste0(outdirs["supplemental_figures"], "/FIGS6a_4NTBias3p_VS_CountBias.pdf")
-gend <- ggplot(equimolar.counts.all.AVERAGE.REPS.filt, aes(x=factor(last.4nt.percGC*100), fill=lib.method.simple, y=mean.pseudo.cpm)) + 
+#this.outfile <- paste0(outdirs["supplemental_figures"], "/FIGS6a_4NTBias3p_VS_CountBias.pdf")
+gend3 <- ggplot(equimolar.counts.all.AVERAGE.REPS.filt, aes(x=factor(last.4nt.percGC*100), fill=lib.method.simple, y=mean.pseudo.cpm)) + 
   geom_boxplot(position = "dodge", size=0.5, outlier.size = 0.25) +
   scale_y_log10(
     limits=c(10^-2,10^5),
@@ -1024,21 +1057,30 @@ gend <- ggplot(equimolar.counts.all.AVERAGE.REPS.filt, aes(x=factor(last.4nt.per
     labels = scales::trans_format("log10", scales::math_format(10^.x))
   ) + labs(x="3'P nt 1-4 %GC", y="CPM", title="%GC: 3'nt 1-4") +
   theme(
-    axis.text.x=element_text(color="black"),
+    axis.text.x=element_text(color="black", hjust=1, angle=50),
+    strip.text=element_text(size=6),
+    axis.title=element_text(size=6),
     panel.grid.major = element_line(color=NA),
-    panel.border = element_rect(size=1, color="black"),
+    panel.grid.minor = element_line(color=NA),
+    panel.spacing = unit(0, "lines"),
+    panel.border = element_rect(size=0.5, color="black"),
     axis.ticks = element_line(color="black"),
     legend.position = "none"
     #legend.direction = "horizontal",
     #legend.key.size=unit(1, "lines"),
     #legend.background = element_rect(fill=NA)
-  ) + facet_wrap(~lab.libMethod, ncol=4); gend
-ggsave(this.outfile, gend, width = 7.5, height=9)
+  ) + facet_wrap(~lab.libMethod, ncol=4); gend3
+#ggsave(this.outfile, gend, width = 7.5, height=9)
+this.outfile <- paste0(outdirs["supplemental_figures"], "/FIGS6ab_4NTBias53p_VS_CountBias.pdf")
+g12 <- plot_grid(plotlist = list(gend5, gend3), ncol = 2, labels = c("a", "b"), label_size = 8, label_fontface = "bold")
+save_plot(filename = this.outfile, plot = g12, base_height = 5.2, base_width = 7.5)
+
 # IN-TEXT FigS6b Legend text # Sequences ----
 paste0("%GC = n sequences: ", paste(equimolar.counts.all.AVERAGE.REPS.filt[order(last.4nt.percGC), uniqueN(sequence), by=last.4nt.percGC][, paste0(factor(last.4nt.percGC*100), "% = ", V1 )], collapse=", "))
 # FIGS7 End 3'/5' 4 nt %GC interaction  ----
 this.outfile <- paste0(outdirs["supplemental_figures"], "/FIGS7_END4NTGC_Bias_interaction_VS_CountBias_AddPoints.pdf")
-gend <- ggplot(equimolar.counts.all.AVERAGE.REPS.filt,
+equimolar.counts.all.AVERAGE.REPS.filt[, n.seqs.in.gc.group:=uniqueN(sequence), by=.(first.4nt.percGC, last.4nt.percGC)]
+gend <- ggplot(equimolar.counts.all.AVERAGE.REPS.filt[n.seqs.in.gc.group>2],
                aes(
                  x=factor(first.4nt.percGC*100),
                  fill=lib.method.simple, 
@@ -1050,7 +1092,7 @@ gend <- ggplot(equimolar.counts.all.AVERAGE.REPS.filt,
   geom_quasirandom(dodge.width=0.9, 
                    width=.05,
                    alpha=0.5,
-                   size=0.75) +
+                   size=0.2) +
   scale_y_log10(
     #limits=c(10^-4,10^5),
     breaks = scales::trans_breaks("log10", n = 6,  function(x) 10^x),
@@ -1058,16 +1100,19 @@ gend <- ggplot(equimolar.counts.all.AVERAGE.REPS.filt,
   ) + labs(x="5P nt", y="CPM", fill="3P nt") +
   theme(
     axis.text.x=element_text(color="black"),
-    panel.grid.major = element_blank(),
-    panel.grid.minor = element_blank(),
-    panel.border = element_rect(size=1, color="black"),
-    axis.ticks = element_line(color="black"),
+    strip.text=element_text(size=6),
+    axis.title=element_text(size=6),
+    panel.grid.major = element_line(color=NA),
+    panel.grid.minor = element_line(color=NA),
+    panel.spacing = unit(0, "lines"),
+    panel.border = element_rect(size=0.5, color="black"),
+    axis.ticks = element_line(color="black", size=0.5),
     legend.position = "none"
     #legend.direction = "horizontal",
     #legend.key.size=unit(1, "lines"),
     #legend.background = element_rect(fill=NA)
-  ) + facet_wrap(~lab.libMethod, ncol=4); gend 
-ggsave(this.outfile, gend, width = 7.75, height=8.75)
+  ) + facet_wrap(~lab.libMethod.f, ncol=6); gend 
+ggsave(this.outfile, gend, width = 7.75, height=4.5)
 # IN-TEXT FigS7 Legend text # Sequences ----
 paste0("%GC 5' / 3' 4 nt = n sequences: ", paste(equimolar.counts.all.AVERAGE.REPS[order(first.4nt.percGC, last.4nt.percGC), uniqueN(sequence), by=.(first.4nt.percGC, last.4nt.percGC)][, paste0(first.4nt.percGC*100, "%/", last.4nt.percGC*100, "% = ", V1 )], collapse=", "))
 #%GC 5' / 3' 4 nt = n sequences: 0%/0% = 10, 0%/25% = 23, 0%/50% = 42, 0%/75% = 12, 25%/0% = 17, 25%/25% = 115, 25%/50% = 173, 25%/75% = 78, 25%/100% = 8, 50%/0% = 9, 50%/25% = 104, 50%/50% = 198, 50%/75% = 113, 50%/100% = 14, 75%/0% = 5, 75%/25% = 38, 75%/50% = 92, 75%/75% = 64, 75%/100% = 10, 100%/0% = 2, 100%/25% = 4, 100%/50% = 7, 100%/75% = 7, 100%/100% = 3
@@ -1086,7 +1131,7 @@ save_plot(filename = this.outfile, plot=g)
 equimolar.counts.all.AVERAGE.REPS.filt[, gc.bins:=cut(gc.perc, breaks = seq(0,1,.1), include.lowest = TRUE)]
 this.outfile <- paste0(outdirs["supplemental_figures"], "/FIGS8_GCPerc_VS_CountBias.pdf")
 gend <- ggplot(equimolar.counts.all.AVERAGE.REPS.filt, aes(x=gc.perc*100, y=mean.pseudo.cpm)) + 
-  geom_point(alpha=0.5) +
+  geom_point(alpha=0.5, size=0.25) +
   scale_y_log10(
     #limits=c(10^-4,10^5),
     breaks = scales::trans_breaks("log10", n = 6,  function(x) 10^x),
@@ -1094,15 +1139,19 @@ gend <- ggplot(equimolar.counts.all.AVERAGE.REPS.filt, aes(x=gc.perc*100, y=mean
   ) + labs(x="%GC", y="CPM") + scale_x_continuous(limits = c(0,100)) +
   theme(
     axis.text.x=element_text(color="black"),
+    axis.title=element_text(size=6),
+    strip.text = element_text(size=6),
     panel.grid.major = element_line(color=NA),
-    panel.border = element_rect(size=1, color="black"),
+    panel.grid.minor = element_line(color=NA),
+    panel.border = element_rect(size=0.5, color="black"),
     axis.ticks = element_line(color="black"),
-    legend.position = "top",
-    legend.direction = "horizontal",
-    legend.key.size=unit(1, "lines"),
-    legend.background = element_rect(fill=NA)
-  ) + facet_wrap(~lab.libMethod, ncol=4); gend 
-ggsave(this.outfile, gend,  width = 7.75, height=9)
+    legend.position = "none",
+    panel.spacing = unit(0, "lines")
+    #legend.direction = "horizontal",
+    #legend.key.size=unit(1, "lines"),
+    #legend.background = element_rect(fill=NA)
+  ) + facet_wrap(~lab.libMethod.f, ncol=6); gend 
+ggsave(this.outfile, gend,  width = 7.5, height=5)
 
 
 
@@ -1125,7 +1174,7 @@ pheatmap(cpm.rle, drop_levels=TRUE, treeheight_col = 20, treeheight_row = 10,
          cluster_rows = TRUE,
          annotation_col = eq.heat.col.annot,
          fontsize = 8, 
-         legend_breaks = seq(-4,20,2),
+         #legend_breaks = seq(-4,20,2),
          annotation_colors = FUNCTION.filter.ann_colors(ann_colors, eq.heat.col.annot),
          width=6.5,
          height=4, 
@@ -1260,15 +1309,16 @@ pheatmap(cor(cpm.rle, use = "pair", method = "spearman")^2,
          labels_col = sub("^X", "", colnames(cpm.rle)), 
          labels_row = sub("^X", "", colnames(cpm.rle)), 
          annotation_colors =  FUNCTION.filter.ann_colors(ann_colors, eq.heat.col.annot), 
-         fontsize=8,
-         width=10,
-         height=8)
+         fontsize=5,
+         width=7,
+         height=5)
 # Output without legend for correct sizing
 this.outfile <- paste0(outdirs["supplemental_figures"], "/FIGS3_EQPOOL_SPEARMAN_HEATMAP_NOLEGEND.pdf")
 pheatmap(cor(cpm.rle, use = "pair", method = "spearman")^2, 
-         treeheight_row = 15, 
-         treeheight_col = 15, 
+         treeheight_row = 10, 
+         treeheight_col = 10, 
          legend=FALSE,
+         border_color="black",
          annotation_legend=FALSE,
          breaks=seq(0,1,length.out = 101),
          annotation_col = eq.heat.col.annot,
@@ -1276,9 +1326,9 @@ pheatmap(cor(cpm.rle, use = "pair", method = "spearman")^2,
          labels_col = sub("^X", "", colnames(cpm.rle)), 
          labels_row = sub("^X", "", colnames(cpm.rle)), 
          annotation_colors =  FUNCTION.filter.ann_colors(ann_colors, eq.heat.col.annot), 
-         fontsize=8,
-         width=10,
-         height=8,
+         fontsize=5,
+         width=7.25,
+         height=5.5,
          filename=this.outfile)
 # Output with legend so legend can be added to Illustrator file
 this.outfile <- paste0(outdirs["supplemental_figures"], "/FIGS3_EQPOOL_SPEARMAN_HEATMAP_WITHLEGEND.pdf")
@@ -1313,7 +1363,7 @@ colnames(short.sample.info.eq.B) <- paste0(colnames(short.sample.info.eq.B), ".B
 
 cor.matrix.all.eq.tmp <- merge.data.frame(cor.matrix.all.eq, short.sample.info.eq.A, by.x=1, by.y=0)
 cor.matrix.all.eq.sample.info <- data.table(merge.data.frame(cor.matrix.all.eq.tmp, short.sample.info.eq.B, by.x=2, by.y=0))
-lib.detail.levels.with.nextFlex <- levels(cor.matrix.all.eq.sample.info$lib.method.simple.A)
+lib.detail.levels.with.nextFlex <- levels(cor.matrix.all.eq.sample.info$lib.method.detail.A)
 lib.simple.levels <- levels(cor.matrix.all.eq.sample.info$lib.method.simple.A)
 reorder.paste.fun <- function(query.vec, lookup.vec){
   matches <- match(query.vec, lookup.vec)
@@ -1347,24 +1397,24 @@ cor.matrix.all.eq.sample.info.unique.no.tech.rep.comparison.cor.summary.all <- u
 this.outfile <- paste0(outdirs["tables"], "/Spearman_correlation_equimolar_Pool_summaries_noTechRep_comparison.txt")
 write.table(cor.matrix.all.eq.sample.info.unique.no.tech.rep.comparison.cor.summary.all, this.outfile, sep="\t", quote=FALSE, row.names=FALSE, col.names=TRUE)
 
-comparison.levels.order <- unique(as.character(melt(outer(lib.detail.levels, lib.detail.levels, FUN = paste, sep=".VS."))$value))
-comparison.levels.order <- comparison.levels.order[comparison.levels.order%in%cor.matrix.all.eq.sample.info.unique.no.tech.rep.comparison.cor.summary.simple$comparison]
+comparison.levels.order <- unique(as.character(melt(outer(c(lib.simple.levels, lib.detail.levels), c(lib.simple.levels, lib.detail.levels), FUN = paste, sep=".VS."))$value))
+comparison.levels.order <- comparison.levels.order[comparison.levels.order%in%cor.matrix.all.eq.sample.info.unique.no.tech.rep.comparison.cor.summary.all$comparison]
 cor.matrix.all.eq.sample.info.unique.no.tech.rep.comparison.cor.summary.all[, comparison:=factor(comparison, levels=comparison.levels.order)]
 setorder(cor.matrix.all.eq.sample.info.unique.no.tech.rep.comparison.cor.summary.all, comparison)
 # IN-TEXT STATS: INTRA-Protocol Equimolar Correlation----
 paste(
   cor.matrix.all.eq.sample.info.unique.no.tech.rep.comparison.cor.summary.all[comparison%in%c("TruSeq.VS.TruSeq", "NEBNext.VS.NEBNext", "4N_B.VS.4N_B"),
-  paste0(
-      sub(".VS.*", "", comparison),
-      ": ", 
-      round(simple.mean.r, digits = 2),
-      " (", 
-      round(r02, digits = 2), 
-      ", ", 
-      round(r98, digits = 2),
-      "; n=",
-      nlibs,  
-      ")")], 
+                                                                              paste0(
+                                                                                sub(".VS.*", "", comparison),
+                                                                                ": ", 
+                                                                                round(simple.mean.r, digits = 2),
+                                                                                " (", 
+                                                                                round(r02, digits = 2), 
+                                                                                ", ", 
+                                                                                round(r98, digits = 2),
+                                                                                "; n=",
+                                                                                nlibs,  
+                                                                                ")")], 
   collapse="; ")
 
 # IN-TEXT STATS: INTER-Protocol Equimolar Correlation----
@@ -1380,7 +1430,7 @@ write.table(cor.matrix.all.eq.sample.info.unique.no.tech.rep.comparison.cor.summ
 MEAN.CV.WI.LABS <- FINAL.EQUIMOLAR.LONG[, .(mean.cpm=mean(pseudo.cpm.filt.lengths), sd.cpm=sd(pseudo.cpm.filt.lengths), q1.cpm=quantile(pseudo.cpm.filt.lengths, 0.25), q3.cpm=quantile(pseudo.cpm.filt.lengths, 0.75), n=.N), by=.(lab.libMethod, lib.method.simple, lib.method.detail, equimolar.seqID)]
 MEAN.CV.WI.LABS[, `:=`(intralab.cv=100*sd.cpm/mean.cpm, intralab.qcd=((q3.cpm-q1.cpm)/2)/((q3.cpm+q1.cpm)/2))]
 
-cv.range <- c(min(MEAN.CV.WI.LABS[lib.method.detail!="4N_NEXTflex"]$intralab.cv), max(MEAN.CV.WI.LABS[lib.method.detail!="4N_NEXTflex"]$intralab.cv)); cv.range
+cv.range <- MEAN.CV.WI.LABS[lib.method.detail!="4N_NEXTflex", range(intralab.cv)]; cv.range
 this.outfile <- paste0(outdirs["FIG4"], "/FIG4A_EQUIMOLAR_PERCENT_CV_INTRALAB.pdf")
 ggplot(MEAN.CV.WI.LABS[lib.method.detail!="4N_NEXTflex"],
        aes(x = lab.libMethod,
@@ -1783,8 +1833,8 @@ FINAL.EQUIMOLAR.LONG.copy.top[eq.rank.dt[rank.type=="highest.expr.rank1"], rank:
 FINAL.EQUIMOLAR.LONG.copy.top[, is.top10:=rank<=10]
 #top.10.cols <- c("TRUE" = "orange", "FALSE" = "black")
 # SUPP FIG S1a: Over-represented miRs---------------------
-this.outfile <- paste0(outdirs["supplemental_figures"], "/FIG_S1A_TOP_equimolar_miRs_expressed_by_protocol_log_fold_diff_from_expected_POINTS.pdf")
-g <- ggplot(FINAL.EQUIMOLAR.LONG.copy.top, 
+#this.outfile <- paste0(outdirs["supplemental_figures"], "/FIG_S1A_TOP_equimolar_miRs_expressed_by_protocol_log_fold_diff_from_expected_POINTS.pdf")
+g.top <- ggplot(FINAL.EQUIMOLAR.LONG.copy.top, 
        aes(x=lib.method.simple, 
            y=log.CPM.from.expected,
            fill=lib.method.simple,
@@ -1793,18 +1843,16 @@ g <- ggplot(FINAL.EQUIMOLAR.LONG.copy.top,
   geom_boxplot(pos=position_dodge(width=0.5), width=0.9, size=0.5, alpha=0.5, outlier.color = NA) +
   geom_quasirandom(alpha=0.75, size=0.3, width = 0.4,
                    dodge.width = 0.5) + 
-  facet_wrap(~equimolar.seqID, nrow=3) + 
+  facet_wrap(~equimolar.seqID, ncol=3) + 
   scale_color_manual(values = top.10.cols) +
   theme(panel.border = element_rect(size=1),
-    axis.text=element_text(size=8, color="black"),
+    axis.text=element_text(color="black"),
     axis.line.x=element_line(color="black"),
     axis.line.y=element_line(color="black"),
     axis.text.x=element_text(angle=50, hjust=1),
-    axis.title=element_text(size=8),
-    plot.title=element_text(size=8),
     panel.grid.major = element_blank(),
     panel.spacing = unit(0, "lines"),
-    strip.text=element_text(size=8, color="black"),
+    strip.text=element_text(size=6, color="black"),
     axis.ticks = element_line(color="black"),
     panel.grid.minor = element_blank(),
     legend.position = "none"
@@ -1813,8 +1861,8 @@ g <- ggplot(FINAL.EQUIMOLAR.LONG.copy.top,
     #title="Equimolar Pool:\nOver-represented Sequences",
     y="CPM observed / expected (log2)",
     fill="Top 10 Abundance"
-  );  g
-ggsave(plot = g, filename = this.outfile, width=7.75, height=5.0, units="in")
+  );  g.top
+#ggsave(plot = g, filename = this.outfile, width=7.75, height=5.0, units="in")
 
 FINAL.EQUIMOLAR.LONG.copy.bottom <- subset(FINAL.EQUIMOLAR.LONG.copy, equimolar.seqID%in%bottom.miR.list$equimolar.seqID & !lab.libMethod.replicate%in%sub("^X", "", drop.eq.samples))
 setkeyv(FINAL.EQUIMOLAR.LONG.copy.bottom, c("equimolar.seqID", "lab.libMethod.replicate"))
@@ -1823,8 +1871,8 @@ FINAL.EQUIMOLAR.LONG.copy.bottom[eq.rank.dt[rank.type=="lowest.expr.rank1"], ran
 FINAL.EQUIMOLAR.LONG.copy.bottom[, is.top10:=rank<=10]
 #bottom.10.cols <- c("TRUE" = "orange", "FALSE" = "black")
 # SUPP FIG S1B: Under-represented miRs---------------------
-this.outfile <- paste0(outdirs["supplemental_figures"], "/FIG_S1B_bottom_equimolar_miRs_expressed_by_protocol_log_fold_diff_from_expected_POINTS.pdf")
-g <- ggplot(FINAL.EQUIMOLAR.LONG.copy.bottom[lib.method.simple!="4N" | lib.method.detail=="4N_B"], 
+#this.outfile <- paste0(outdirs["supplemental_figures"], "/FIG_S1B_bottom_equimolar_miRs_expressed_by_protocol_log_fold_diff_from_expected_POINTS.pdf")
+g.bot <- ggplot(FINAL.EQUIMOLAR.LONG.copy.bottom[lib.method.simple!="4N" | lib.method.detail=="4N_B"], 
             aes(x=lib.method.simple, 
                 y=log.CPM.from.expected,
                 fill=lib.method.simple,
@@ -1833,19 +1881,17 @@ g <- ggplot(FINAL.EQUIMOLAR.LONG.copy.bottom[lib.method.simple!="4N" | lib.metho
   geom_boxplot(pos=position_dodge(width=0.5), width=0.9, size=0.5, alpha=0.5, outlier.color = NA) +
   geom_quasirandom(alpha=0.75, size=0.3, width = 0.4,
                    dodge.width = 0.5) + 
-  facet_wrap(~equimolar.seqID, nrow=3) + 
+  facet_wrap(~equimolar.seqID, ncol=3) + 
   scale_y_continuous(breaks=seq(-16,4,2)) +
   scale_color_manual(values = bottom.10.cols) +
   theme(panel.border = element_rect(size=1),
-        axis.text=element_text(size=8, color="black"),
+        axis.text=element_text(color="black", size=5),
         axis.line.x=element_line(color="black"),
         axis.line.y=element_line(color="black"),
         axis.text.x=element_text(angle=50, hjust=1),
-        axis.title=element_text(size=8),
-        plot.title=element_text(size=8),
         panel.grid.major = element_blank(),
         panel.spacing = unit(0, "lines"),
-        strip.text=element_text(size=8, color="black"),
+        strip.text=element_text(size=6, color="black"),
         axis.ticks = element_line(color="black"),
         panel.grid.minor = element_blank(),
         legend.position = "none"
@@ -1854,8 +1900,11 @@ g <- ggplot(FINAL.EQUIMOLAR.LONG.copy.bottom[lib.method.simple!="4N" | lib.metho
     #title="Equimolar Pool:\nOver-represented Sequences",
     y="CPM observed / expected (log2)",
     fill="Bottom 10 Abundance"
-  );  g
-ggsave(plot = g, filename = this.outfile, width=7.75, height=5.0, units="in")
+  );  g.bot
+this.outfile <- paste0(outdirs["supplemental_figures"], "/FIG_S1AB_over_and_underRepresented_equimolar_miRs_expressed_by_protocol_log_fold_diff_from_expected_POINTS.pdf")
+gtop.bot <- plot_grid(plotlist = list(g.top, g.bot), ncol = 2, align = "v", rel_widths = c(1, 1)); gtop.bot
+save_plot(this.outfile, gtop.bot, base_width = 7.75, base_height=5.2)
+
 
 # RATIOMETRIC WRANGLING --------------------------
 ratiometric.counts <- subset(counts.all.dt.add.zerocount, pool!="SynthEQ" & !is.na(ratio.seqID))
@@ -1954,6 +2003,11 @@ g <- ggplot(FINAL.RATIOMETRIC.LONG.AVERAGE.REPS.CAST.AvsB[mean.cpm_SynthA>0 & me
     annotation_logticks(sides = "l", short = unit(0.05, "cm"), mid = unit(0.1, "cm"), long = unit(0.15, "cm")) + facet_wrap(~lab.libMethod2, dir = "h", ncol=5); g
 this.plot <- paste0(outdirs["FIG3"], "/FIG3A_RatioVSExpected.pdf")
 ggsave(this.plot, plot = g, width = 7.5, height=6.5, units = "in")
+ratio.n.table <- dcast.data.table(FINAL.RATIOMETRIC.LONG.AVERAGE.REPS.CAST.AvsB[mean.cpm_SynthA>0 & mean.cpm_SynthB>0], lab.libMethod ~ RATIO.AvsB.Expected, value.var="ratio.seqID", fun.aggregate = uniqueN)
+ratios.expected <- FINAL.RATIOMETRIC.LONG.AVERAGE.REPS.CAST.AvsB[, levels(RATIO.AvsB.Expected)]
+ratio.n.table <- FINAL.RATIOMETRIC.LONG.AVERAGE.REPS.CAST.AvsB[, .(n=uniqueN(ratio.seqID[mean.cpm_SynthA>0 & mean.cpm_SynthB>0]), n.max=uniqueN(ratio.seqID)), by=.(lab.libMethod, RATIO.AvsB.Expected)]
+this.outfile <- paste0(outdirs["tables"], "/FIG3A_RatioVSExpected_table.txt")
+fwrite(x = ratio.n.table, file = this.outfile)
 
 
 # Differential Expression Ratio Pool --------------------------
@@ -2248,8 +2302,8 @@ write.table(cor.matrix.all.ratio.sample.info.cor.summary.all, this.outfile, sep=
 # SUP FigS14 Intralab %CV Ratio -------------------------------
 INTRALAB.CV.RATIOMETRIC <- FINAL.RATIOMETRIC.LONG[, .(mean.cpm=mean(pseudo.cpm.filt.lengths), sd.cpm=sd(pseudo.cpm.filt.lengths), q1.cpm=quantile(pseudo.cpm.filt.lengths, 0.25), q3.cpm=quantile(pseudo.cpm.filt.lengths, 0.75)), by=.(lab.libMethod,  Lab, lib.method.detail, lib.method.simple, ratio.seqID, pool)]
 INTRALAB.CV.RATIOMETRIC[, `:=`(intralab.cv=100*sd.cpm/mean.cpm, intralab.qcd=((q3.cpm-q1.cpm)/2)/((q3.cpm+q1.cpm)/2))]
-this.outfile <- paste0(outdirs["supplemental_figures"], "/FIG_S14_RATIOMETRIC_CV_INTRALAB_Violin.pdf"); this.outfile
-ggplot(INTRALAB.CV.RATIOMETRIC,
+#this.outfile <- paste0(outdirs["supplemental_figures"], "/FIG_S14_RATIOMETRIC_CV_INTRALAB_Violin.pdf"); this.outfile
+g1 <- ggplot(INTRALAB.CV.RATIOMETRIC,
        aes(x = lab.libMethod,
            y = intralab.cv,
            alpha = pool,
@@ -2259,25 +2313,26 @@ ggplot(INTRALAB.CV.RATIOMETRIC,
   scale_y_continuous(limits = c(0,190), breaks = seq(0, 180, 20), expand=c(0,0)) +
   theme(
     axis.text.x = element_text(angle=50, hjust=1),
+    axis.title=element_text(size=6),
     panel.grid.major = element_line(color = NA),
     panel.grid.minor = element_line(color = NA),
-    panel.border = element_rect(size = 1, color = "black"),
-    axis.ticks = element_line(color = "black", size = 1),
-    legend.position = "top",
-    legend.direction = "horizontal",
-    legend.key.size=unit(1.0, "lines")
+    panel.border = element_rect(size = 0.5, color = "black"),
+    axis.ticks = element_line(color = "black", size = 0.5),
+    legend.position = "none"
+    #legend.direction = "horizontal",
+    #legend.key.size=unit(1.0, "lines")
   ) +
-  labs(title = "RATIOMETRIC: %CV Within-labs",
+  labs(#title = "RATIOMETRIC: %CV Within-labs",
        x = NULL,
-       y = "%CV") 
-ggsave(this.outfile, width = 7.5, height=5.0)
+       y = "%CV (Within-labs)") 
+#ggsave(this.outfile, width = 7.5, height=5.0)
 
 
 # SUP FigS14 Intralab QCD Ratio -------------------------------
-this.outfile <- paste0(outdirs["supplemental_figures"], "/FIGS14_RATIOMETRIC_QCD_INTRALAB.pdf"); this.outfile
+#this.outfile <- paste0(outdirs["supplemental_figures"], "/FIGS14_RATIOMETRIC_QCD_INTRALAB.pdf"); this.outfile
 
 #Intralab qcd violin
-ggplot(INTRALAB.CV.RATIOMETRIC,
+g2 <- ggplot(INTRALAB.CV.RATIOMETRIC,
        aes(x = lab.libMethod,
            y = intralab.qcd,
            pos = pool,
@@ -2288,19 +2343,22 @@ ggplot(INTRALAB.CV.RATIOMETRIC,
   scale_alpha_discrete(range=c(0.25, 1)) +
   theme(
     axis.text.x = element_text(angle=50, hjust=1),
+    axis.title=element_text(size=6),
     panel.grid.major = element_line(color = NA),
     panel.grid.minor = element_line(color = NA),
-    panel.border = element_rect(size = 1, color = "black"),
-    axis.ticks = element_line(color = "black", size = 1),
-    legend.position = "top",
-    legend.direction = "horizontal",
-    legend.key.size=unit(1.0, "lines")
+    panel.border = element_rect(size = 0.5, color = "black"),
+    axis.ticks = element_line(color = "black", size = 0.5),
+    legend.position = "none"
+    #legend.direction = "horizontal",
+    #legend.key.size=unit(1.0, "lines")
   ) +
-  labs(title = "RATIOMETRIC: QCD Within-labs",
+  labs(#title = "RATIOMETRIC: QCD Within-labs",
        x = NULL,
-       y = "QCD") 
-ggsave(this.outfile, width = 7.5, height=5.0)
-
+       y = "QCD (Within-labs)") 
+#ggsave(this.outfile, width = 7.5, height=5.0)
+this.outfile <- paste0(outdirs["supplemental_figures"], "/FIGS14ab_RATIOMETRIC_CV_QCD_INTRALAB.pdf"); this.outfile
+g12 <- plot_grid(plotlist = list(g1, g2), nrow = 2); g12
+save_plot(filename = this.outfile, plot = g12, base_height = 5, base_width = 7.5)
 
 # Intralab CV Ratio Summary Table -------------------------------
 summary.quantiles <- c(0.02, 0.25, 0.50, 0.75, 0.98)
@@ -2550,20 +2608,18 @@ g <- ggplot(est.prob.detected.n.miRs,
        y="# miRNAs with > 90% Probability of Detection") +
   scale_y_continuous(labels = percent_format(), breaks = seq(0,1,0.1), limits=c(0,1)) +
   theme(panel.grid.minor = element_blank(),
-        axis.text=element_text(size=8, color="black"),
+        axis.text=element_text(color="black"),
         axis.text.x = element_text(angle=50, hjust=1, color="black"),
         axis.line=element_line(color="black"),
-        axis.title=element_text(size=8),
-        plot.title=element_text(size=8),
         panel.grid.major = element_line(color=NA),
         #panel.border = element_blank(),
         #panel.spacing = unit(0, "lines"),
         #strip.background = element_blank(),
-        strip.text=element_text(size=8, color="black"),
+        strip.text=element_text(size=7, color="black"),
         axis.ticks = element_line(color="black"),
         legend.position = "none"
   ); g
-ggsave(this.outfile, g, width=7.5, height=7)
+ggsave(this.outfile, g, width=7.5, height=5)
 
 # Plasma Pool Wrangling ------------------------------
 total.count.cutoff = 100000
@@ -2981,26 +3037,29 @@ est.prob.detected.n.miRs <- drr.all.plasma.filt[, .(n.detected=sum(ifelse(est.pr
 
 # Figure 5D: Plasma Pool miRs detected ------
 this.outfile <- paste0(outdirs["FIG5"], "/FIG5D_miRs_detected_plasmaPool_pointsOverlaid.pdf")
+est.prob.detected.n.miRs[, downsample.to.f:=factor(round(log10(downsample.to), 1), levels=rev(downsample.to.vec))]
 g <- ggplot(est.prob.detected.n.miRs,
             aes(
               x=lib.method.simple,
               y=n.detected, fill=lib.method.simple)) + 
-  geom_boxplot(alpha=0.5, width=0.9, outlier.color = NA) + geom_jitter(position = position_quasirandom(width = 0.4), alpha=0.7) + 
-  facet_wrap(~downsample.to.f, nrow = 1) +
+  geom_boxplot(alpha=0.5, width=0.9, outlier.color = NA) + 
+  geom_jitter(position = position_quasirandom(width = 0.4), size=0.25, alpha=0.7) + 
+  facet_wrap(~downsample.to.f, nrow = 1,  labeller = label_bquote(10 ^ .(as.character(downsample.to.f)))) +
   labs(x=NULL,
        y="# miRNAs detected in all samples",
        strip="log10 Sequencing Depth (total miRNA-mapping reads)") +
-  scale_y_continuous(breaks = seq(0,1000,100)) +
+  scale_y_continuous(breaks = seq(0,1000,100), limits=c(0,900)) +
   theme(panel.grid.minor = element_blank(),
         axis.text=element_text(color="black"),
         axis.text.x = element_text(angle=50, hjust=1, color="black"),
         axis.line=element_line(color="black"),
         panel.grid.major = element_blank(),
         panel.spacing = unit(0, "lines"),
-        strip.text=element_text(size=8, color="black"),
+        strip.text=element_text(size=6, color="black"),
+        axis.title=element_text(size=6, color="black"),
         axis.ticks = element_line(color="black"),
         legend.position = "none") ; g
-ggsave(this.outfile, g, width = 7, height = 2.25); g
+ggsave(this.outfile, g, width = 6.25, height = 1.75); g
 
 
 # Figure 5D ALT (Not Used): Plasma Pool miRs detected Separate 4N ------
